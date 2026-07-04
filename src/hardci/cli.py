@@ -8,8 +8,6 @@ from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
 
-import yaml
-
 from hardci import __version__
 from hardci.comports import list_available_com_ports
 from hardci.comstdio import run_com_stdio
@@ -151,11 +149,6 @@ def build_parser() -> argparse.ArgumentParser:
     skill_parser.add_argument("--target", default=None)
     skill_parser.add_argument("--force", action="store_true")
 
-    migrate_parser = subparsers.add_parser("migrate-aihil", help="migrate .aihil/config.yaml and .mcp.json to HardCI")
-    migrate_parser.add_argument("--source", default=".aihil/config.yaml")
-    migrate_parser.add_argument("--config", default=DEFAULT_CONFIG_PATH)
-    migrate_parser.add_argument("--mcp", default=".mcp.json")
-    migrate_parser.add_argument("--force", action="store_true")
     return parser
 
 
@@ -176,8 +169,6 @@ def dispatch(args: argparse.Namespace) -> JsonObject | int | None:
         return schema(args.output, args.force)
     if args.command == "skill-install":
         return install_skill(args.agent, args.target, args.force)
-    if args.command == "migrate-aihil":
-        return migrate_aihil(args.source, args.config, args.mcp, args.force)
     return {"ok": False, "error_type": "unknown_command", "summary": f"unknown command: {args.command}"}
 
 
@@ -256,59 +247,6 @@ def doctor(config_path: str | None = None) -> JsonObject:
         "can_buses": {bus_id: {"adapter": bus.adapter, "channel": bus.channel, "bitrate": bus.bitrate, "fd": bus.fd} for bus_id, bus in config.can_buses.items()},
         "debugger": debugger_info,
     }
-
-
-def migrate_aihil(source: str, target: str, mcp_path: str, force: bool = False) -> JsonObject:
-    source_path = Path(source)
-    target_path = Path(target)
-    if not source_path.exists():
-        return {"ok": False, "error_type": "source_not_found", "summary": "AI-HIL configuration could not be found.", "source_path": source}
-    if target_path.exists() and not force:
-        return {"ok": False, "error_type": "config_exists", "summary": "HardCI configuration already exists. Use --force to overwrite it.", "path": target}
-    raw = yaml.safe_load(source_path.read_text(encoding="utf-8")) or {}
-    migrated = rewrite_aihil_paths(raw)
-    target_path.parent.mkdir(parents=True, exist_ok=True)
-    target_path.write_text(yaml.safe_dump(migrated, sort_keys=False), encoding="utf-8")
-    try:
-        load_config(str(target_path))
-    except ConfigError as error:
-        result = error.to_dict()
-        result["summary"] = "Migrated HardCI configuration was written but failed validation."
-        result["path"] = str(target_path)
-        return result
-    mcp_result = migrate_mcp_json(Path(mcp_path), force)
-    return {"ok": True, "summary": "AI-HIL project configuration migrated to HardCI.", "source_path": source, "path": target, "mcp": mcp_result, "next_steps": ["Review .hardci/config.yaml policy values.", "Run: hardci doctor", "Restart your MCP client so it loads the hardci server entry."]}
-
-
-def rewrite_aihil_paths(value: object) -> object:
-    if isinstance(value, dict):
-        return {key: rewrite_aihil_paths(item) for key, item in value.items()}
-    if isinstance(value, list):
-        return [rewrite_aihil_paths(item) for item in value]
-    if isinstance(value, str):
-        return value.replace(".aihil/", ".hardci/").replace(".aihil\\", ".hardci\\")
-    return value
-
-
-def migrate_mcp_json(path: Path, force: bool) -> JsonObject:
-    next_config: JsonObject = {"mcpServers": {}}
-    if path.exists():
-        try:
-            loaded = json.loads(path.read_text(encoding="utf-8"))
-            if isinstance(loaded, dict):
-                next_config = loaded
-        except json.JSONDecodeError:
-            if not force:
-                return {"ok": False, "error_type": "mcp_invalid", "summary": ".mcp.json exists but is not valid JSON. Use --force to overwrite it.", "path": str(path)}
-    servers = next_config.setdefault("mcpServers", {})
-    if not isinstance(servers, dict):
-        if not force:
-            return {"ok": False, "error_type": "mcp_invalid", "summary": ".mcp.json mcpServers field is not an object. Use --force to overwrite it.", "path": str(path)}
-        next_config["mcpServers"] = servers = {}
-    servers.pop("aihil", None)
-    servers["hardci"] = {"command": "hardci", "args": ["mcp-stdio", "--config", ".hardci/config.yaml"]}
-    path.write_text(json.dumps(next_config, indent=2) + "\n", encoding="utf-8")
-    return {"ok": True, "path": str(path), "server": "hardci"}
 
 
 def install_skill(agent: str | None = None, target: str | None = None, force: bool = False) -> JsonObject:

@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import hashlib
-import json
 from pathlib import Path
 
 import pytest
-from conftest import FAKE_STLINK, FAKE_STLINK_UNCONFIRMED, write_config
+from conftest import FAKE_STLINK_UNCONFIRMED, write_config
 
 from hardci.artifacts import ArtifactManager
-from hardci.cli import init_config, install_skill, migrate_aihil, schema
+from hardci.cli import init_config, install_skill, schema
 from hardci.config import load_config
 from hardci.mcp import handle_mcp_message
 from hardci.tools import HardCIToolService
@@ -35,37 +34,6 @@ def test_schema_exports_bundled_config_schema(tmp_path: Path) -> None:
     result = schema(str(schema_path))
     assert result["ok"] is True
     assert "HardCI project configuration" in schema_path.read_text(encoding="utf-8")
-
-
-def test_migrate_aihil_writes_hardci_config_and_mcp(tmp_path: Path) -> None:
-    source = tmp_path / ".aihil" / "config.yaml"
-    source.parent.mkdir(parents=True)
-    source.write_text(
-        f"""target:
-  name: "demo"
-debugger:
-  executable: "{FAKE_STLINK.as_posix()}"
-artifacts:
-  upload_directory: ".aihil/artifacts"
-reports:
-  directory: ".aihil/reports"
-logs:
-  directory: ".aihil/logs"
-""",
-        encoding="utf-8",
-    )
-    mcp = tmp_path / ".mcp.json"
-    mcp.write_text(json.dumps({"mcpServers": {"aihil": {"command": "aihil"}, "other": {"command": "keep"}}}), encoding="utf-8")
-
-    result = migrate_aihil(str(source), str(tmp_path / ".hardci" / "config.yaml"), str(mcp), False)
-
-    assert result["ok"] is True
-    migrated = (tmp_path / ".hardci" / "config.yaml").read_text(encoding="utf-8")
-    assert ".hardci/artifacts" in migrated
-    mcp_data = json.loads(mcp.read_text(encoding="utf-8"))
-    assert "aihil" not in mcp_data["mcpServers"]
-    assert mcp_data["mcpServers"]["hardci"]["command"] == "hardci"
-    assert mcp_data["mcpServers"]["other"]["command"] == "keep"
 
 
 def test_config_loads_defaults(tmp_path: Path) -> None:

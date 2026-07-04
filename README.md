@@ -2,7 +2,7 @@
 
 **HardCI gives AI coding agents safe, project-scoped access to real embedded hardware.**
 
-HardCI is the Python/PyPI successor to AI-HIL. It exposes bounded MCP tools for probing, flashing, resetting, artifact validation, serial feedback, CAN stimuli, reports, and logs without giving an agent arbitrary host or debugger access.
+HardCI is a Python/PyPI package that exposes bounded MCP tools for probing, flashing, resetting, artifact validation, serial feedback, CAN stimuli, reports, and logs without giving an agent arbitrary host or debugger access.
 
 ## Install
 
@@ -21,17 +21,6 @@ python -m pip install --user hardci
 python -m hardci init
 python -m hardci doctor
 ```
-
-## Migrate From AI-HIL
-
-From a firmware project that already has `.aihil/config.yaml`:
-
-```bash
-hardci migrate-aihil
-hardci doctor
-```
-
-The migration writes `.hardci/config.yaml`, rewrites default `.aihil/...` storage paths to `.hardci/...`, and updates `.mcp.json` to launch the `hardci` PyPI command.
 
 ## MCP Entry
 

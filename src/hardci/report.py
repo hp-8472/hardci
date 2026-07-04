@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from hardci.config import display_path, resolve_work_path
@@ -9,7 +9,7 @@ from hardci.types import HardCIConfig, JsonObject
 
 
 def utc_now_iso() -> str:
-    return datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
 def timestamp_for_filename() -> str:

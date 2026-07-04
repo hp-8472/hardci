@@ -17,13 +17,6 @@ hardci init
 hardci doctor
 ```
 
-For migration from AI-HIL:
-
-```bash
-hardci migrate-aihil
-hardci doctor
-```
-
 Never bypass HardCI policy with raw debugger commands, direct serial device access, or direct CAN adapter access when a HardCI MCP tool is available.
 
 If any HardCI tool returns `permission_denied`, stop and ask the user before changing policy.

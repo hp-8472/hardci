@@ -11,10 +11,3 @@ Install or update the local agent setup skill with:
 ```bash
 hardci skill-install --agent opencode
 ```
-
-For migration from AI-HIL, run:
-
-```bash
-hardci migrate-aihil
-hardci doctor
-```

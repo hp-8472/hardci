@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hardci.local/schemas/config.schema.json",
+  "title": "HardCI project configuration",
+  "description": "Schema for project-local .hardci/config.yaml files.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "default": "unknown-target" },
+        "controller": { "type": "string", "default": "unknown-controller" }
+      }
+    },
+    "debugger": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": { "type": "string", "default": "openocd", "enum": ["openocd", "stlink"] },
+        "executable": { "type": ["string", "null"], "default": null },
+        "probe_id": { "type": ["string", "null"], "pattern": "^[A-Za-z0-9_.:-]+$", "default": null },
+        "interface": { "type": "string", "default": "SWD", "enum": ["SWD", "JTAG"] },
+        "interface_cfg": { "type": "string", "default": "interface/stlink.cfg" },
+        "target_cfg": { "type": "string", "default": "target/stm32f4x.cfg" },
+        "flash_address": { "type": ["string", "null"], "pattern": "^(0x[0-9A-Fa-f]+|[0-9]+)$", "default": null },
+        "timeout_s": { "type": "number", "default": 60.0 }
+      }
+    },
+    "debug": {
+      "type": "object",
+      "description": "Typed debug-session settings for safe GDB/OpenOCD operations.",
+      "additionalProperties": false,
+      "properties": {
+        "gdb_executable": { "type": ["string", "null"], "default": null },
+        "allowed_symbols": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*$" },
+          "default": []
+        },
+        "max_dump_size_bytes": { "type": "integer", "minimum": 1, "default": 1048576 }
+      },
+      "default": {}
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "allowed_roots": { "type": "array", "items": { "type": "string" }, "default": ["build"] },
+        "upload_directory": { "type": "string", "default": ".hardci/artifacts" },
+        "allowed_extensions": { "type": "array", "items": { "type": "string" }, "default": [".elf", ".hex", ".bin"] },
+        "max_upload_size_mb": { "type": "integer", "default": 64 },
+        "allow_upload": { "type": "boolean", "default": true }
+      }
+    },
+    "com_ports": {
+      "type": "object",
+      "description": "Named serial/COM ports that HardCI may open for stimuli and feedback.",
+      "propertyNames": { "pattern": "^[A-Za-z0-9_.-]+$" },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["device"],
+        "properties": {
+          "device": { "type": "string" },
+          "baudrate": { "type": "integer", "minimum": 1, "default": 115200 },
+          "timeout_s": { "type": "number", "minimum": 0, "default": 0.1 },
+          "write_timeout_s": { "type": "number", "minimum": 0, "default": 1.0 },
+          "encoding": { "type": "string", "default": "utf-8" },
+          "max_buffer_bytes": { "type": "integer", "minimum": 1, "default": 65536 },
+          "max_write_bytes": { "type": "integer", "minimum": 1, "default": 4096 }
+        }
+      },
+      "default": {}
+    },
+    "can_buses": {
+      "type": "object",
+      "description": "Named CAN buses that HardCI may open for stimuli and feedback.",
+      "propertyNames": { "pattern": "^[A-Za-z0-9_.-]+$" },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["channel"],
+        "properties": {
+          "adapter": { "type": "string", "default": "peak", "enum": ["peak", "socketcan", "process"] },
+          "channel": { "type": "string" },
+          "bitrate": { "type": "integer", "minimum": 1, "default": 500000 },
+          "fd": { "type": "boolean", "default": false },
+          "data_bitrate": { "type": ["integer", "null"], "minimum": 1, "default": null },
+          "pcanbasic_dll": { "type": ["string", "null"], "default": null },
+          "executable": { "type": ["string", "null"], "default": null },
+          "args": { "type": "array", "items": { "type": "string" }, "default": [] },
+          "timeout_s": { "type": "number", "minimum": 0, "default": 10.0 },
+          "poll_interval_ms": { "type": "integer", "minimum": 1, "default": 10 },
+          "receive_own_messages": { "type": "boolean", "default": false },
+          "listen_only": { "type": "boolean", "default": false },
+          "max_buffer_frames": { "type": "integer", "minimum": 1, "default": 1024 },
+          "max_frame_data_bytes": { "type": "integer", "minimum": 0, "maximum": 64, "default": 8 }
+        }
+      },
+      "default": {}
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "require_existing_file": { "type": "boolean", "default": true },
+        "require_allowed_root": { "type": "boolean", "default": true },
+        "require_allowed_extension": { "type": "boolean", "default": true },
+        "compute_sha256": { "type": "boolean", "default": true },
+        "inspect_known_formats": { "type": "boolean", "default": true }
+      }
+    },
+    "permissions": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "allow_probe": { "type": "boolean", "default": true },
+        "allow_flash": { "type": "boolean", "default": true },
+        "allow_reset": { "type": "boolean", "default": true },
+        "allow_com_read": { "type": "boolean", "default": true },
+        "allow_com_write": { "type": "boolean", "default": true },
+        "allow_can_read": { "type": "boolean", "default": true },
+        "allow_can_write": { "type": "boolean", "default": true },
+        "allow_raw_debugger_commands": { "type": "boolean", "default": false },
+        "allow_mass_erase": { "type": "boolean", "default": false }
+      }
+    },
+    "reports": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": { "directory": { "type": "string", "default": ".hardci/reports" } }
+    },
+    "logs": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": { "directory": { "type": "string", "default": ".hardci/logs" } }
+    }
+  }
+}

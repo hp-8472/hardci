@@ -1,0 +1,6 @@
+include README.md
+include AGENTS.md
+recursive-include src/hardci/schemas *.json
+recursive-include src/hardci/templates *.json
+recursive-include src/hardci/skills *.md
+recursive-include tests *.py

@@ -1,0 +1,84 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hardci"
+version = "0.1.0"
+description = "Safe local hardware-in-the-loop bridge for AI-assisted embedded CI loops"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+authors = [
+  { name = "Hannes Pauli", email = "mail@hannes-pauli.de" }
+]
+keywords = [
+  "mcp",
+  "model-context-protocol",
+  "embedded",
+  "hardware-in-the-loop",
+  "openocd",
+  "firmware",
+  "serial",
+  "stlink",
+  "debugger",
+  "hardci",
+  "stm32"
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Software Development :: Embedded Systems",
+  "Topic :: Software Development :: Testing"
+]
+dependencies = [
+  "jsonschema>=4.22",
+  "PyYAML>=6.0",
+  "pyserial>=3.5"
+]
+
+[project.optional-dependencies]
+can = ["python-can>=4.4"]
+dev = [
+  "build>=1.2",
+  "pytest>=8.0",
+  "ruff>=0.6",
+  "twine>=5.0"
+]
+
+[project.urls]
+Homepage = "https://github.com/hp-8472/hardci"
+Repository = "https://github.com/hp-8472/hardci.git"
+Issues = "https://github.com/hp-8472/hardci/issues"
+
+[project.scripts]
+hardci = "hardci.cli:entrypoint"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+hardci = [
+  "schemas/*.json",
+  "templates/*.json",
+  "skills/hardci-config-setup/SKILL.md"
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "--strict-markers"
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]

@@ -10,6 +10,7 @@ import yaml
 from jsonschema import Draft202012Validator, SchemaError
 
 from hardci.types import (
+    AdapterConfig,
     ArtifactsConfig,
     CanBusConfig,
     ComPortConfig,
@@ -98,6 +99,7 @@ def load_config(config_path: str | None = None, work_dir: str | None = None) -> 
     artifacts_raw = mapping(raw.get("artifacts"), "artifacts")
     com_ports_raw = mapping(raw.get("com_ports"), "com_ports")
     can_buses_raw = mapping(raw.get("can_buses"), "can_buses")
+    adapters_raw = mapping(raw.get("adapters"), "adapters")
     validation_raw = mapping(raw.get("validation"), "validation")
     permissions_raw = mapping(raw.get("permissions"), "permissions")
     reports_raw = mapping(raw.get("reports"), "reports")
@@ -120,6 +122,7 @@ def load_config(config_path: str | None = None, work_dir: str | None = None) -> 
         artifacts=artifacts_config(artifacts_raw),
         com_ports={name: com_port_config(name, value) for name, value in com_ports_raw.items()},
         can_buses={name: can_bus_config(name, value) for name, value in can_buses_raw.items()},
+        adapters={name: adapter_config(name, value) for name, value in adapters_raw.items()},
         validation=validation_config(validation_raw),
         permissions=permissions_config(permissions_raw),
         reports=reports_config(reports_raw),
@@ -264,6 +267,17 @@ def can_bus_config(name: str, value: Any) -> CanBusConfig:
     )
 
 
+def adapter_config(name: str, value: Any) -> AdapterConfig:
+    raw = mapping(value, f"adapters.{name}")
+    return AdapterConfig(
+        executable=str(raw["executable"]),
+        args=string_list(raw.get("args"), []),
+        timeout_s=float(raw.get("timeout_s", 10.0)),
+        channels=string_list(raw.get("channels"), []),
+        faults=string_list(raw.get("faults"), []),
+    )
+
+
 def validation_config(raw: JsonObject) -> ValidationConfig:
     return ValidationConfig(
         require_existing_file=bool(raw.get("require_existing_file", True)),
@@ -283,6 +297,8 @@ def permissions_config(raw: JsonObject) -> PermissionsConfig:
         allow_com_write=bool(raw.get("allow_com_write", True)),
         allow_can_read=bool(raw.get("allow_can_read", True)),
         allow_can_write=bool(raw.get("allow_can_write", True)),
+        allow_adapter_read=bool(raw.get("allow_adapter_read", True)),
+        allow_adapter_write=bool(raw.get("allow_adapter_write", True)),
         allow_raw_debugger_commands=bool(raw.get("allow_raw_debugger_commands", False)),
         allow_mass_erase=bool(raw.get("allow_mass_erase", False)),
     )

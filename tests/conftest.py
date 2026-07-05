@@ -6,6 +6,7 @@ ROOT = Path(__file__).resolve().parents[1]
 FAKE_OPENOCD = ROOT / "tests" / "fixtures" / "fake_openocd.py"
 FAKE_STLINK = ROOT / "tests" / "fixtures" / "fake_stlink.py"
 FAKE_STLINK_UNCONFIRMED = ROOT / "tests" / "fixtures" / "fake_stlink_unconfirmed.py"
+SIM_NTC_ADAPTER = ROOT / "examples" / "adapters" / "sim_ntc_adapter.py"
 
 
 def write_config(
@@ -17,6 +18,8 @@ def write_config(
     flash_address: str | None = None,
     com_ports_yaml: str = "com_ports: {}\n",
     can_buses_yaml: str = "can_buses: {}\n",
+    adapters_yaml: str = "adapters: {}\n",
+    permissions_yaml: str = "",
 ) -> Path:
     if debugger_executable is None:
         debugger_executable = FAKE_STLINK if debugger_type == "stlink" else FAKE_OPENOCD
@@ -45,7 +48,7 @@ artifacts:
   upload_directory: ".hardci/artifacts"
   max_upload_size_mb: 1
   allow_upload: true
-{com_ports_yaml}{can_buses_yaml}reports:
+{com_ports_yaml}{can_buses_yaml}{adapters_yaml}{permissions_yaml}reports:
   directory: ".hardci/reports"
 logs:
   directory: ".hardci/logs"

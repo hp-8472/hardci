@@ -48,6 +48,8 @@ com_ports: {}
 
 can_buses: {}
 
+adapters: {}
+
 validation:
   require_existing_file: true
   require_allowed_root: true
@@ -63,6 +65,8 @@ permissions:
   allow_com_write: true
   allow_can_read: true
   allow_can_write: true
+  allow_adapter_read: true
+  allow_adapter_write: true
   allow_raw_debugger_commands: false
   allow_mass_erase: false
 
@@ -206,7 +210,14 @@ def init_next_steps(available_com_ports: JsonObject) -> list[str]:
             next_steps.append("No host COM ports detected. Connect USB serial hardware and run: hardci com-ports")
     else:
         next_steps.append("COM port discovery failed. Run: hardci com-ports after checking the pyserial installation.")
-    next_steps.extend(["For CAN access, add a named bus under can_buses.", "Run: hardci doctor", "Create or update .mcp.json if your MCP client needs project discovery."])
+    next_steps.extend(
+        [
+            "For CAN access, add a named bus under can_buses.",
+            "For sensor/actuator/fault simulation, add a named test adapter under adapters.",
+            "Run: hardci doctor",
+            "Create or update .mcp.json if your MCP client needs project discovery.",
+        ]
+    )
     return next_steps
 
 
@@ -245,6 +256,7 @@ def doctor(config_path: str | None = None) -> JsonObject:
         "target": {"name": config.target.name, "controller": config.target.controller},
         "com_ports": {port_id: {"device": port.device, "baudrate": port.baudrate, "encoding": port.encoding} for port_id, port in config.com_ports.items()},
         "can_buses": {bus_id: {"adapter": bus.adapter, "channel": bus.channel, "bitrate": bus.bitrate, "fd": bus.fd} for bus_id, bus in config.can_buses.items()},
+        "adapters": {adapter_id: {"executable": adapter.executable, "channels": adapter.channels, "faults": adapter.faults} for adapter_id, adapter in config.adapters.items()},
         "debugger": debugger_info,
     }
 

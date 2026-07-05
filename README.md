@@ -83,10 +83,17 @@ can_buses:
     channel: "can0"
     bitrate: 500000
 
+adapters:
+  ntc_sim:                   # sensor/actuator/fault-simulation bridge
+    executable: "examples/adapters/sim_ntc_adapter.py"
+    channels: ["temperature", "resistance"]
+    faults: ["open", "short_to_gnd", "short_to_vcc"]
+
 permissions:
   allow_flash: true
   allow_com_write: true
   allow_can_write: true
+  allow_adapter_write: true
   allow_raw_debugger_commands: false
   allow_mass_erase: false
 ```
@@ -101,10 +108,17 @@ Export the full JSON schema with `hardci schema --output hardci-config.schema.js
 | Firmware | `hardci_flash_firmware`, `hardci_artifact_upload` | artifacts are validated (path, extension, format, SHA-256) before flashing |
 | Serial | `hardci_com_ports_list`, `hardci_com_session_start`, `hardci_com_session_stop`, `hardci_com_write`, `hardci_com_read` | named ports only, buffered background reader |
 | CAN | `hardci_can_buses_list`, `hardci_can_session_start`, `hardci_can_session_stop`, `hardci_can_send`, `hardci_can_read` | PEAK, SocketCAN, or a process bridge |
+| Test adapters | `hardci_adapters_list`, `hardci_adapter_session_start`, `hardci_adapter_session_stop`, `hardci_adapter_set_value`, `hardci_adapter_inject_fault`, `hardci_adapter_clear_fault`, `hardci_adapter_measure` | sensor/actuator/fault simulation via the [adapter bridge protocol](examples/adapters/README.md) |
 | Diagnostics | `hardci_get_last_report`, `hardci_classify_last_error` | structured error classification with likely causes |
 | Debug sessions | `hardci_debug_*` (start/stop/status, breakpoints, continue/halt, symbol info, memory dump) | reserved API — returns `not_supported` in this build |
 
-A typical loop: build firmware → `hardci_flash_firmware` → `hardci_com_session_start` → stimulate via `hardci_com_write`/`hardci_can_send` → assert on `hardci_com_read`/`hardci_can_read` → on failure, `hardci_classify_last_error`.
+A typical loop: build firmware → `hardci_flash_firmware` → `hardci_com_session_start` → stimulate via `hardci_com_write`/`hardci_can_send`/`hardci_adapter_set_value` → assert on `hardci_com_read`/`hardci_can_read`/`hardci_adapter_measure` → on failure, `hardci_classify_last_error`.
+
+## Test Adapters
+
+Real-world firmware bugs show up under electrical conditions that standard lab tools cannot reproduce on demand: an open or shorted sensor, a drifting NTC, a missing load, a bouncing contact. The `adapters:` section connects HardCI to test adapters that simulate exactly these states — physical adapter hardware or pure-software simulators, both speaking the same [JSON bridge protocol](examples/adapters/README.md).
+
+Example diagnosis loop with the bundled NTC simulator (`examples/adapters/sim_ntc_adapter.py`): flash the firmware, set the simulated sensor to 25 °C and assert nominal behavior, inject an `open` fault and assert the firmware reports the sensor failure, clear the fault and assert recovery — every step automated, reproducible, and policy-gated.
 
 ## Safety Model
 
@@ -113,6 +127,7 @@ A typical loop: build firmware → `hardci_flash_firmware` → `hardci_com_sessi
 - Every action class has its own permission switch; `permission_denied` results are authoritative and agents are instructed to stop (see [AGENTS.md](AGENTS.md)).
 - Deliberate interlock: flashing is refused while `allow_raw_debugger_commands` or `allow_mass_erase` is enabled — validated flashing and unrestricted debugger access are mutually exclusive policies.
 - Serial/CAN writes are size-capped (`max_write_bytes`, `max_frame_data_bytes`); reads are buffer-capped. Debugger calls run with timeouts and TCP servers disabled (OpenOCD `gdb_port`/`tcl_port`/`telnet_port disabled`).
+- Test adapter channels and fault names are explicit allowlists — HardCI rejects anything not named in the config before it reaches the adapter bridge.
 - All actions log to `.hardci/logs/` and write a structured report to `.hardci/reports/`.
 
 ## Common Commands

@@ -1,12 +1,20 @@
 # HardCI
 
-**HardCI gives AI coding agents safe, project-scoped access to real embedded hardware.**
+**Your AI agent can develop firmware on its own — because HardCI closes the loop with real hardware.**
 
-HardCI is a Python package that exposes bounded MCP tools for probing, flashing, resetting, artifact validation, serial feedback, CAN stimuli, reports, and logs — without giving an agent arbitrary host or debugger access. A project-local policy file (`.hardci/config.yaml`) defines exactly which devices, actions, paths, and limits are allowed.
+```
+┌─▶ build ─▶ flash ─▶ stimulate ─▶ observe ─┐
+│                                           │
+└◀──────────── diagnose & fix ─────────────┘
+
+  your agent, unattended — you review the pull request
+```
+
+HardCI is a Python package that exposes bounded MCP tools for probing, flashing, resetting, artifact validation, serial and CAN stimulus/feedback, test adapters, reports, and logs — without giving an agent arbitrary host or debugger access. A project-local policy file (`.hardci/config.yaml`) defines exactly which devices, actions, paths, and limits are allowed. That policy gate is what makes unattended hardware access workable in the first place.
 
 ## Why
 
-A green build is not enough in embedded development: firmware has to behave correctly on the real board. AI agents and CI pipelines need that hardware feedback loop, but handing them a raw debugger shell or direct serial access is neither safe nor reproducible. HardCI closes the gap with a small, auditable gate:
+A green build is not enough in embedded development: firmware has to behave correctly on the real board. Classic tools automate single steps — flash here, read a log there — but the moment real hardware has to respond, a human is back in the loop. Handing an agent a raw debugger shell or direct serial access instead is neither safe nor reproducible. HardCI closes the gap with a small, auditable gate:
 
 ```
 AI agent / CI  ──MCP (stdio)──▶  HardCI  ──policy check──▶  OpenOCD / pyOCD / STM32CubeProgrammer

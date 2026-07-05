@@ -1,5 +1,9 @@
 include README.md
 include AGENTS.md
+include AI_AGENT_QUICKSTART.md
+include TROUBLESHOOTING.md
+include SECURITY.md
+include llms.txt
 include LICENSE
 recursive-include src/hardci/schemas *.json
 recursive-include src/hardci/templates *.json

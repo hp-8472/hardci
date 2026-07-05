@@ -20,23 +20,29 @@ Every hardware action is validated against the project policy, executed with tim
 
 ## Install
 
-Recommended user install:
+The easiest path: tell your AI agent
+
+> Install HardCI from https://github.com/hp-8472/hardci and set it up for this project.
+
+Agents follow [AI_AGENT_QUICKSTART.md](AI_AGENT_QUICKSTART.md) — everything installs user-local, **no admin rights required, ever**.
+
+By hand, without installing anything (no `PATH` changes; needs [uv](https://docs.astral.sh/uv/) or pipx):
 
 ```bash
-pipx install hardci
+uvx hardci --version                                                # from PyPI
+uvx --from git+https://github.com/hp-8472/hardci hardci --version   # from the repository
+```
+
+Persistent user-local install (recommended for the MCP server entry):
+
+```bash
+uv tool install hardci      # or: pipx install hardci
 hardci init
 hardci doctor
+hardci mcp-config --output .mcp.json
 ```
 
-Without pipx:
-
-```bash
-python -m pip install --user hardci
-python -m hardci init
-python -m hardci doctor
-```
-
-For direct PEAK/SocketCAN access install the CAN extra: `pipx install 'hardci[can]'`.
+For direct PEAK/SocketCAN access install the CAN extra: `uv tool install 'hardci[can]'`. See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) when something does not start.
 
 ## MCP Entry
 
@@ -151,6 +157,7 @@ The `hardci` fixture loads `.hardci/config.yaml` relative to the pytest rootdir 
 hardci init
 hardci doctor
 hardci com-ports
+hardci mcp-config --output .mcp.json
 hardci mcp-stdio --config .hardci/config.yaml
 hardci com-stdio --config .hardci/config.yaml --port dut_uart
 hardci schema --output hardci-config.schema.json

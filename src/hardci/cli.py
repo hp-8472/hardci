@@ -148,6 +148,10 @@ def build_parser() -> argparse.ArgumentParser:
     schema_parser.add_argument("--output", default=None)
     schema_parser.add_argument("--force", action="store_true")
 
+    mcp_config_parser = subparsers.add_parser("mcp-config", help="print or write project .mcp.json for MCP client discovery")
+    mcp_config_parser.add_argument("--output", default=None)
+    mcp_config_parser.add_argument("--force", action="store_true")
+
     skill_parser = subparsers.add_parser("skill-install", help="install/update the HardCI agent setup skill")
     skill_parser.add_argument("--agent", default="opencode")
     skill_parser.add_argument("--target", default=None)
@@ -171,6 +175,8 @@ def dispatch(args: argparse.Namespace) -> JsonObject | int | None:
         return run_com_stdio(config, args.port, max_read_bytes=args.max_read_bytes, read_wait_timeout_s=args.read_wait_timeout_s, eof_idle_timeout_s=args.eof_idle_timeout_s)
     if args.command == "schema":
         return schema(args.output, args.force)
+    if args.command == "mcp-config":
+        return mcp_config(args.output, args.force)
     if args.command == "skill-install":
         return install_skill(args.agent, args.target, args.force)
     return {"ok": False, "error_type": "unknown_command", "summary": f"unknown command: {args.command}"}
@@ -232,6 +238,23 @@ def schema(output: str | None = None, force: bool = False) -> JsonObject:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(text, encoding="utf-8")
     return {"ok": True, "summary": "HardCI configuration schema written.", "path": output}
+
+
+def mcp_config_text() -> str:
+    return resources.files("hardci").joinpath("templates", "mcp.json").read_text(encoding="utf-8")
+
+
+def mcp_config(output: str | None = None, force: bool = False) -> JsonObject:
+    text = mcp_config_text()
+    if output is None:
+        sys.stdout.write(text)
+        return {"ok": True}
+    output_path = Path(output)
+    if output_path.exists() and not force:
+        return {"ok": False, "error_type": "mcp_config_exists", "summary": "MCP configuration already exists. Use --force to overwrite it.", "path": output}
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(text, encoding="utf-8")
+    return {"ok": True, "summary": "HardCI MCP configuration written.", "path": output}
 
 
 def doctor(config_path: str | None = None) -> JsonObject:

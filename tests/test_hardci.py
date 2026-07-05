@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import subprocess
 import sys
@@ -11,7 +12,7 @@ from conftest import FAKE_STLINK_UNCONFIRMED, SIM_NTC_ADAPTER, write_config
 
 from hardci.artifacts import ArtifactManager
 from hardci.can import CanFrame, ProcessCanAdapterSession, open_python_can_adapter
-from hardci.cli import init_config, install_skill, schema
+from hardci.cli import init_config, install_skill, mcp_config, schema
 from hardci.comports import ComPortService
 from hardci.config import ConfigError, load_config
 from hardci.mcp import MCP_PROTOCOL_VERSION, MCP_TOOL_NAMES, MCP_TOOLS, handle_mcp_message
@@ -39,6 +40,25 @@ def test_schema_exports_bundled_config_schema(tmp_path: Path) -> None:
     result = schema(str(schema_path))
     assert result["ok"] is True
     assert "HardCI project configuration" in schema_path.read_text(encoding="utf-8")
+
+
+def test_mcp_config_writes_project_mcp_json(tmp_path: Path) -> None:
+    output_path = tmp_path / ".mcp.json"
+    result = mcp_config(str(output_path))
+    assert result["ok"] is True
+    content = json.loads(output_path.read_text(encoding="utf-8"))
+    assert content["mcpServers"]["hardci"]["command"] == "hardci"
+    assert "mcp-stdio" in content["mcpServers"]["hardci"]["args"]
+
+
+def test_mcp_config_refuses_overwrite_without_force(tmp_path: Path) -> None:
+    output_path = tmp_path / ".mcp.json"
+    output_path.write_text("{}", encoding="utf-8")
+    result = mcp_config(str(output_path))
+    assert result["ok"] is False
+    assert result["error_type"] == "mcp_config_exists"
+    result_forced = mcp_config(str(output_path), force=True)
+    assert result_forced["ok"] is True
 
 
 def test_config_loads_defaults(tmp_path: Path) -> None:

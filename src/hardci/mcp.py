@@ -19,86 +19,86 @@ JSONRPC_INTERNAL_ERROR = -32603
 EMPTY_OBJECT_SCHEMA: JsonObject = {"type": "object", "properties": {}, "additionalProperties": False}
 
 MCP_TOOL_NAMES = [
-    "hardci_debugger_info",
-    "hardci_probe_target",
-    "hardci_artifact_upload",
-    "hardci_flash_firmware",
-    "hardci_reset_target",
-    "hardci_debug_start_session",
-    "hardci_debug_stop_session",
-    "hardci_debug_get_session_status",
-    "hardci_debug_set_breakpoint",
-    "hardci_debug_list_breakpoints",
-    "hardci_debug_clear_breakpoints",
-    "hardci_debug_continue",
-    "hardci_debug_halt",
-    "hardci_debug_get_stop_reason",
-    "hardci_debug_symbol_info",
-    "hardci_debug_dump_symbol_ihex",
-    "hardci_get_last_report",
-    "hardci_classify_last_error",
-    "hardci_com_ports_list",
-    "hardci_com_session_start",
-    "hardci_com_session_stop",
-    "hardci_com_write",
-    "hardci_com_read",
-    "hardci_can_buses_list",
-    "hardci_can_session_start",
-    "hardci_can_session_stop",
-    "hardci_can_send",
-    "hardci_can_read",
-    "hardci_adapters_list",
-    "hardci_adapter_session_start",
-    "hardci_adapter_session_stop",
-    "hardci_adapter_set_value",
-    "hardci_adapter_inject_fault",
-    "hardci_adapter_clear_fault",
-    "hardci_adapter_measure",
+    "debugger_info",
+    "probe_target",
+    "artifact_upload",
+    "flash_firmware",
+    "reset_target",
+    "debug_start_session",
+    "debug_stop_session",
+    "debug_get_session_status",
+    "debug_set_breakpoint",
+    "debug_list_breakpoints",
+    "debug_clear_breakpoints",
+    "debug_continue",
+    "debug_halt",
+    "debug_get_stop_reason",
+    "debug_symbol_info",
+    "debug_dump_symbol_ihex",
+    "get_last_report",
+    "classify_last_error",
+    "com_ports_list",
+    "com_session_start",
+    "com_session_stop",
+    "com_write",
+    "com_read",
+    "can_buses_list",
+    "can_session_start",
+    "can_session_stop",
+    "can_send",
+    "can_read",
+    "adapters_list",
+    "adapter_session_start",
+    "adapter_session_stop",
+    "adapter_set_value",
+    "adapter_inject_fault",
+    "adapter_clear_fault",
+    "adapter_measure",
 ]
 
 MCP_TOOLS: list[JsonObject] = [
-    {"name": "hardci_debugger_info", "description": "Check whether the configured debugger backend is available.", "inputSchema": EMPTY_OBJECT_SCHEMA},
-    {"name": "hardci_probe_target", "description": "Probe the configured embedded target through the configured debugger.", "inputSchema": EMPTY_OBJECT_SCHEMA},
-    {"name": "hardci_artifact_upload", "description": "Upload a local or base64-encoded firmware artifact into the configured HardCI artifact store.", "inputSchema": {"type": "object", "properties": {"image_path": {"type": "string"}, "filename": {"type": "string"}, "data_base64": {"type": "string"}}, "oneOf": [{"required": ["image_path"]}, {"required": ["filename", "data_base64"]}], "additionalProperties": False}},
-    {"name": "hardci_flash_firmware", "description": "Flash a validated firmware artifact. Provide exactly one of image_path or artifact_id.", "inputSchema": {"type": "object", "properties": {"image_path": {"type": "string"}, "artifact_id": {"type": "string"}}, "oneOf": [{"required": ["image_path"]}, {"required": ["artifact_id"]}], "additionalProperties": False}},
-    {"name": "hardci_reset_target", "description": "Reset the configured target through the configured debugger.", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string", "enum": ["run", "halt", "init"], "default": "run"}}, "additionalProperties": False}},
-    {"name": "hardci_debug_start_session", "description": "Start a typed debug session for a validated ELF artifact.", "inputSchema": {"type": "object", "properties": {"image_path": {"type": "string"}, "artifact_id": {"type": "string"}, "mode": {"type": "string", "enum": ["attach", "reset_halt", "load"], "default": "attach"}, "timeout_s": {"type": "number", "minimum": 0}}, "oneOf": [{"required": ["image_path"]}, {"required": ["artifact_id"]}], "additionalProperties": False}},
-    {"name": "hardci_debug_stop_session", "description": "Stop the active typed debug session.", "inputSchema": {"type": "object", "properties": {"timeout_s": {"type": "number", "minimum": 0}}, "additionalProperties": False}},
-    {"name": "hardci_debug_get_session_status", "description": "Return active debug-session status.", "inputSchema": EMPTY_OBJECT_SCHEMA},
-    {"name": "hardci_debug_set_breakpoint", "description": "Set a typed breakpoint by symbol/function name or file and line.", "inputSchema": {"type": "object", "properties": {"location": {"oneOf": [{"type": "string"}, {"type": "object"}]}}, "required": ["location"], "additionalProperties": False}},
-    {"name": "hardci_debug_list_breakpoints", "description": "List breakpoints in the active debug session.", "inputSchema": EMPTY_OBJECT_SCHEMA},
-    {"name": "hardci_debug_clear_breakpoints", "description": "Clear all breakpoints from the active debug session.", "inputSchema": EMPTY_OBJECT_SCHEMA},
-    {"name": "hardci_debug_continue", "description": "Continue target execution until stop or timeout.", "inputSchema": {"type": "object", "properties": {"timeout_s": {"type": "number", "minimum": 0}}, "additionalProperties": False}},
-    {"name": "hardci_debug_halt", "description": "Halt the target in the active debug session.", "inputSchema": {"type": "object", "properties": {"timeout_s": {"type": "number", "minimum": 0}}, "additionalProperties": False}},
-    {"name": "hardci_debug_get_stop_reason", "description": "Return the last structured stop reason.", "inputSchema": EMPTY_OBJECT_SCHEMA},
-    {"name": "hardci_debug_symbol_info", "description": "Resolve an allowed debug symbol.", "inputSchema": {"type": "object", "properties": {"symbol": {"type": "string"}}, "required": ["symbol"], "additionalProperties": False}},
-    {"name": "hardci_debug_dump_symbol_ihex", "description": "Read an allowed symbol from target memory and write Intel HEX.", "inputSchema": {"type": "object", "properties": {"symbol": {"type": "string"}, "output_path": {"type": "string"}}, "required": ["symbol", "output_path"], "additionalProperties": False}},
-    {"name": "hardci_get_last_report", "description": "Return the most recent structured HardCI report.", "inputSchema": EMPTY_OBJECT_SCHEMA},
-    {"name": "hardci_classify_last_error", "description": "Classify the most recent HardCI/debugger failure.", "inputSchema": EMPTY_OBJECT_SCHEMA},
-    {"name": "hardci_com_ports_list", "description": "List configured named COM ports and detected host serial ports.", "inputSchema": EMPTY_OBJECT_SCHEMA},
-    {"name": "hardci_com_session_start", "description": "Open a configured COM port and start a background feedback session.", "inputSchema": {"type": "object", "properties": {"port_id": {"type": "string"}, "clear_buffer": {"type": "boolean", "default": True}}, "required": ["port_id"], "additionalProperties": False}},
-    {"name": "hardci_com_session_stop", "description": "Stop a configured COM port session.", "inputSchema": {"type": "object", "properties": {"port_id": {"type": "string"}}, "required": ["port_id"], "additionalProperties": False}},
-    {"name": "hardci_com_write", "description": "Write text or hex stimulus to an active COM port session.", "inputSchema": {"type": "object", "properties": {"port_id": {"type": "string"}, "text": {"type": "string"}, "hex": {"type": "string"}}, "required": ["port_id"], "oneOf": [{"required": ["text"]}, {"required": ["hex"]}], "additionalProperties": False}},
-    {"name": "hardci_com_read", "description": "Read buffered feedback from an active COM port session.", "inputSchema": {"type": "object", "properties": {"port_id": {"type": "string"}, "max_bytes": {"type": "integer", "minimum": 1}, "wait_timeout_s": {"type": "number", "minimum": 0, "default": 0}}, "required": ["port_id"], "additionalProperties": False}},
-    {"name": "hardci_can_buses_list", "description": "List configured named CAN buses and active session status.", "inputSchema": EMPTY_OBJECT_SCHEMA},
-    {"name": "hardci_can_session_start", "description": "Open a configured CAN bus session.", "inputSchema": {"type": "object", "properties": {"bus_id": {"type": "string"}, "clear_rx_queue": {"type": "boolean", "default": True}}, "required": ["bus_id"], "additionalProperties": False}},
-    {"name": "hardci_can_session_stop", "description": "Stop a configured CAN bus session.", "inputSchema": {"type": "object", "properties": {"bus_id": {"type": "string"}}, "required": ["bus_id"], "additionalProperties": False}},
-    {"name": "hardci_can_send", "description": "Send one classic CAN frame on an active configured CAN bus session.", "inputSchema": {"type": "object", "properties": {"bus_id": {"type": "string"}, "frame_id": {"oneOf": [{"type": "integer", "minimum": 0}, {"type": "string"}]}, "extended": {"type": "boolean", "default": False}, "rtr": {"type": "boolean", "default": False}, "data_hex": {"type": "string", "default": ""}}, "required": ["bus_id", "frame_id"], "additionalProperties": False}},
-    {"name": "hardci_can_read", "description": "Read CAN frames from an active configured CAN bus session.", "inputSchema": {"type": "object", "properties": {"bus_id": {"type": "string"}, "max_frames": {"type": "integer", "minimum": 1}, "wait_timeout_s": {"type": "number", "minimum": 0, "default": 0}}, "required": ["bus_id"], "additionalProperties": False}},
-    {"name": "hardci_adapters_list", "description": "List configured test adapters (sensor/actuator/fault simulation) and session status.", "inputSchema": EMPTY_OBJECT_SCHEMA},
-    {"name": "hardci_adapter_session_start", "description": "Start a session with a configured test adapter bridge.", "inputSchema": {"type": "object", "properties": {"adapter_id": {"type": "string"}}, "required": ["adapter_id"], "additionalProperties": False}},
-    {"name": "hardci_adapter_session_stop", "description": "Stop a configured test adapter session.", "inputSchema": {"type": "object", "properties": {"adapter_id": {"type": "string"}}, "required": ["adapter_id"], "additionalProperties": False}},
-    {"name": "hardci_adapter_set_value", "description": "Set a configured test adapter channel to a value (e.g. simulated sensor temperature).", "inputSchema": {"type": "object", "properties": {"adapter_id": {"type": "string"}, "channel": {"type": "string"}, "value": {"type": "number"}, "unit": {"type": "string"}}, "required": ["adapter_id", "channel", "value"], "additionalProperties": False}},
-    {"name": "hardci_adapter_inject_fault", "description": "Inject a configured fault state (e.g. open sensor, short to GND) on a test adapter.", "inputSchema": {"type": "object", "properties": {"adapter_id": {"type": "string"}, "fault": {"type": "string"}, "channel": {"type": "string"}}, "required": ["adapter_id", "fault"], "additionalProperties": False}},
-    {"name": "hardci_adapter_clear_fault", "description": "Clear an injected fault (or all faults) on a test adapter.", "inputSchema": {"type": "object", "properties": {"adapter_id": {"type": "string"}, "fault": {"type": "string"}, "channel": {"type": "string"}}, "required": ["adapter_id"], "additionalProperties": False}},
-    {"name": "hardci_adapter_measure", "description": "Measure a configured test adapter channel and return the structured value.", "inputSchema": {"type": "object", "properties": {"adapter_id": {"type": "string"}, "channel": {"type": "string"}}, "required": ["adapter_id", "channel"], "additionalProperties": False}},
+    {"name": "debugger_info", "description": "Check whether the configured debugger backend is available.", "inputSchema": EMPTY_OBJECT_SCHEMA},
+    {"name": "probe_target", "description": "Probe the configured embedded target through the configured debugger.", "inputSchema": EMPTY_OBJECT_SCHEMA},
+    {"name": "artifact_upload", "description": "Upload a local or base64-encoded firmware artifact into the configured HardCI artifact store.", "inputSchema": {"type": "object", "properties": {"image_path": {"type": "string"}, "filename": {"type": "string"}, "data_base64": {"type": "string"}}, "oneOf": [{"required": ["image_path"]}, {"required": ["filename", "data_base64"]}], "additionalProperties": False}},
+    {"name": "flash_firmware", "description": "Flash a validated firmware artifact. Provide exactly one of image_path or artifact_id.", "inputSchema": {"type": "object", "properties": {"image_path": {"type": "string"}, "artifact_id": {"type": "string"}}, "oneOf": [{"required": ["image_path"]}, {"required": ["artifact_id"]}], "additionalProperties": False}},
+    {"name": "reset_target", "description": "Reset the configured target through the configured debugger.", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string", "enum": ["run", "halt", "init"], "default": "run"}}, "additionalProperties": False}},
+    {"name": "debug_start_session", "description": "Start a typed debug session for a validated ELF artifact.", "inputSchema": {"type": "object", "properties": {"image_path": {"type": "string"}, "artifact_id": {"type": "string"}, "mode": {"type": "string", "enum": ["attach", "reset_halt", "load"], "default": "attach"}, "timeout_s": {"type": "number", "minimum": 0}}, "oneOf": [{"required": ["image_path"]}, {"required": ["artifact_id"]}], "additionalProperties": False}},
+    {"name": "debug_stop_session", "description": "Stop the active typed debug session.", "inputSchema": {"type": "object", "properties": {"timeout_s": {"type": "number", "minimum": 0}}, "additionalProperties": False}},
+    {"name": "debug_get_session_status", "description": "Return active debug-session status.", "inputSchema": EMPTY_OBJECT_SCHEMA},
+    {"name": "debug_set_breakpoint", "description": "Set a typed breakpoint by symbol/function name or file and line.", "inputSchema": {"type": "object", "properties": {"location": {"oneOf": [{"type": "string"}, {"type": "object"}]}}, "required": ["location"], "additionalProperties": False}},
+    {"name": "debug_list_breakpoints", "description": "List breakpoints in the active debug session.", "inputSchema": EMPTY_OBJECT_SCHEMA},
+    {"name": "debug_clear_breakpoints", "description": "Clear all breakpoints from the active debug session.", "inputSchema": EMPTY_OBJECT_SCHEMA},
+    {"name": "debug_continue", "description": "Continue target execution until stop or timeout.", "inputSchema": {"type": "object", "properties": {"timeout_s": {"type": "number", "minimum": 0}}, "additionalProperties": False}},
+    {"name": "debug_halt", "description": "Halt the target in the active debug session.", "inputSchema": {"type": "object", "properties": {"timeout_s": {"type": "number", "minimum": 0}}, "additionalProperties": False}},
+    {"name": "debug_get_stop_reason", "description": "Return the last structured stop reason.", "inputSchema": EMPTY_OBJECT_SCHEMA},
+    {"name": "debug_symbol_info", "description": "Resolve an allowed debug symbol.", "inputSchema": {"type": "object", "properties": {"symbol": {"type": "string"}}, "required": ["symbol"], "additionalProperties": False}},
+    {"name": "debug_dump_symbol_ihex", "description": "Read an allowed symbol from target memory and write Intel HEX.", "inputSchema": {"type": "object", "properties": {"symbol": {"type": "string"}, "output_path": {"type": "string"}}, "required": ["symbol", "output_path"], "additionalProperties": False}},
+    {"name": "get_last_report", "description": "Return the most recent structured HardCI report.", "inputSchema": EMPTY_OBJECT_SCHEMA},
+    {"name": "classify_last_error", "description": "Classify the most recent HardCI/debugger failure.", "inputSchema": EMPTY_OBJECT_SCHEMA},
+    {"name": "com_ports_list", "description": "List configured named COM ports and detected host serial ports.", "inputSchema": EMPTY_OBJECT_SCHEMA},
+    {"name": "com_session_start", "description": "Open a configured COM port and start a background feedback session.", "inputSchema": {"type": "object", "properties": {"port_id": {"type": "string"}, "clear_buffer": {"type": "boolean", "default": True}}, "required": ["port_id"], "additionalProperties": False}},
+    {"name": "com_session_stop", "description": "Stop a configured COM port session.", "inputSchema": {"type": "object", "properties": {"port_id": {"type": "string"}}, "required": ["port_id"], "additionalProperties": False}},
+    {"name": "com_write", "description": "Write text or hex stimulus to an active COM port session.", "inputSchema": {"type": "object", "properties": {"port_id": {"type": "string"}, "text": {"type": "string"}, "hex": {"type": "string"}}, "required": ["port_id"], "oneOf": [{"required": ["text"]}, {"required": ["hex"]}], "additionalProperties": False}},
+    {"name": "com_read", "description": "Read buffered feedback from an active COM port session.", "inputSchema": {"type": "object", "properties": {"port_id": {"type": "string"}, "max_bytes": {"type": "integer", "minimum": 1}, "wait_timeout_s": {"type": "number", "minimum": 0, "default": 0}}, "required": ["port_id"], "additionalProperties": False}},
+    {"name": "can_buses_list", "description": "List configured named CAN buses and active session status.", "inputSchema": EMPTY_OBJECT_SCHEMA},
+    {"name": "can_session_start", "description": "Open a configured CAN bus session.", "inputSchema": {"type": "object", "properties": {"bus_id": {"type": "string"}, "clear_rx_queue": {"type": "boolean", "default": True}}, "required": ["bus_id"], "additionalProperties": False}},
+    {"name": "can_session_stop", "description": "Stop a configured CAN bus session.", "inputSchema": {"type": "object", "properties": {"bus_id": {"type": "string"}}, "required": ["bus_id"], "additionalProperties": False}},
+    {"name": "can_send", "description": "Send one classic CAN frame on an active configured CAN bus session.", "inputSchema": {"type": "object", "properties": {"bus_id": {"type": "string"}, "frame_id": {"oneOf": [{"type": "integer", "minimum": 0}, {"type": "string"}]}, "extended": {"type": "boolean", "default": False}, "rtr": {"type": "boolean", "default": False}, "data_hex": {"type": "string", "default": ""}}, "required": ["bus_id", "frame_id"], "additionalProperties": False}},
+    {"name": "can_read", "description": "Read CAN frames from an active configured CAN bus session.", "inputSchema": {"type": "object", "properties": {"bus_id": {"type": "string"}, "max_frames": {"type": "integer", "minimum": 1}, "wait_timeout_s": {"type": "number", "minimum": 0, "default": 0}}, "required": ["bus_id"], "additionalProperties": False}},
+    {"name": "adapters_list", "description": "List configured test adapters (sensor/actuator/fault simulation) and session status.", "inputSchema": EMPTY_OBJECT_SCHEMA},
+    {"name": "adapter_session_start", "description": "Start a session with a configured test adapter bridge.", "inputSchema": {"type": "object", "properties": {"adapter_id": {"type": "string"}}, "required": ["adapter_id"], "additionalProperties": False}},
+    {"name": "adapter_session_stop", "description": "Stop a configured test adapter session.", "inputSchema": {"type": "object", "properties": {"adapter_id": {"type": "string"}}, "required": ["adapter_id"], "additionalProperties": False}},
+    {"name": "adapter_set_value", "description": "Set a configured test adapter channel to a value (e.g. simulated sensor temperature).", "inputSchema": {"type": "object", "properties": {"adapter_id": {"type": "string"}, "channel": {"type": "string"}, "value": {"type": "number"}, "unit": {"type": "string"}}, "required": ["adapter_id", "channel", "value"], "additionalProperties": False}},
+    {"name": "adapter_inject_fault", "description": "Inject a configured fault state (e.g. open sensor, short to GND) on a test adapter.", "inputSchema": {"type": "object", "properties": {"adapter_id": {"type": "string"}, "fault": {"type": "string"}, "channel": {"type": "string"}}, "required": ["adapter_id", "fault"], "additionalProperties": False}},
+    {"name": "adapter_clear_fault", "description": "Clear an injected fault (or all faults) on a test adapter.", "inputSchema": {"type": "object", "properties": {"adapter_id": {"type": "string"}, "fault": {"type": "string"}, "channel": {"type": "string"}}, "required": ["adapter_id"], "additionalProperties": False}},
+    {"name": "adapter_measure", "description": "Measure a configured test adapter channel and return the structured value.", "inputSchema": {"type": "object", "properties": {"adapter_id": {"type": "string"}, "channel": {"type": "string"}}, "required": ["adapter_id", "channel"], "additionalProperties": False}},
 ]
 
 HARDCI_WORKFLOW_PROMPT = """Use HardCI as the safe gate to the configured embedded hardware.
 
 Workflow:
 1. Build the firmware first.
-2. Check debugger availability with hardci_debugger_info if setup is unclear.
+2. Check debugger availability with debugger_info if setup is unclear.
 3. Probe the target before flashing.
 4. Flash only validated artifacts from configured allowed roots.
 5. Read structured results after every hardware action.
@@ -112,7 +112,7 @@ Safety rules:
 - Treat permission_denied as authoritative and stop.
 """
 
-MCP_PROMPTS = [{"name": "hardci_embedded_workflow", "description": "Safe workflow for using HardCI hardware tools from an AI agent."}]
+MCP_PROMPTS = [{"name": "embedded_workflow", "description": "Safe workflow for using HardCI hardware tools from an AI agent."}]
 
 
 def parse_error_response() -> JsonObject:
@@ -186,8 +186,8 @@ def call_tool(params: Any, tools: HardCIToolService) -> JsonObject:
 
 def get_prompt(params: Any) -> JsonObject:
     params_object = params_object_or_throw(params)
-    if params_object.get("name") != "hardci_embedded_workflow":
-        text = "Unknown HardCI prompt. Use hardci_embedded_workflow."
+    if params_object.get("name") != "embedded_workflow":
+        text = "Unknown HardCI prompt. Use embedded_workflow."
         return {"description": "Unknown HardCI prompt.", "messages": [{"role": "user", "content": {"type": "text", "text": text}}]}
     return {"description": "Safe workflow for using HardCI hardware tools from an AI agent.", "messages": [{"role": "user", "content": {"type": "text", "text": HARDCI_WORKFLOW_PROMPT}}]}
 

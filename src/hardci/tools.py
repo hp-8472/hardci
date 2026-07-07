@@ -37,11 +37,11 @@ class HardCIToolService:
     def flash_firmware(self, payload: JsonObject | None = None) -> JsonObject:
         payload = payload or {}
         if not self.config.permissions.allow_flash:
-            return tool_error("hardci_flash_firmware", "permission_denied", "Flashing is disabled by .hardci/config.yaml.")
+            return tool_error("flash_firmware", "permission_denied", "Flashing is disabled by .hardci/config.yaml.")
         image_path = payload.get("image_path")
         artifact_id = payload.get("artifact_id")
         if bool(image_path) == bool(artifact_id):
-            return tool_error("hardci_flash_firmware", "invalid_argument", "Provide exactly one of image_path or artifact_id.")
+            return tool_error("flash_firmware", "invalid_argument", "Provide exactly one of image_path or artifact_id.")
         validation = self.artifacts.validate_local_path(str(image_path)) if image_path else self.artifacts.resolve_artifact_id(str(artifact_id))
         if not validation["ok"]:
             return validation
@@ -58,14 +58,14 @@ class HardCIToolService:
         image_path = payload.get("image_path")
         artifact_id = payload.get("artifact_id")
         if bool(image_path) == bool(artifact_id):
-            return tool_error("hardci_debug_start_session", "invalid_argument", "Provide exactly one of image_path or artifact_id.")
-        validation = self.artifacts.validate_local_path(str(image_path)) if image_path else self.artifacts.resolve_artifact_id(str(artifact_id), "hardci_debug_start_session")
+            return tool_error("debug_start_session", "invalid_argument", "Provide exactly one of image_path or artifact_id.")
+        validation = self.artifacts.validate_local_path(str(image_path)) if image_path else self.artifacts.resolve_artifact_id(str(artifact_id), "debug_start_session")
         if not validation["ok"]:
-            validation["tool"] = "hardci_debug_start_session"
+            validation["tool"] = "debug_start_session"
             return validation
         artifact = validation["artifact"]
         if Path(str(artifact["resolved_path"])).suffix.lower() != ".elf":
-            return tool_error("hardci_debug_start_session", "artifact_validation_failed", "Debug sessions require an ELF artifact with debug symbols.")
+            return tool_error("debug_start_session", "artifact_validation_failed", "Debug sessions require an ELF artifact with debug symbols.")
         return self.backend.debug_start_session(artifact, str(payload.get("mode", "attach")), number_argument(payload.get("timeout_s")))
 
     def debug_stop_session(self, payload: JsonObject | None = None) -> JsonObject:
@@ -79,7 +79,7 @@ class HardCIToolService:
         has_symbol_location = isinstance(location, str) and bool(location.strip())
         has_typed_location = isinstance(location, dict) and bool(location)
         if not has_symbol_location and not has_typed_location:
-            return tool_error("hardci_debug_set_breakpoint", "invalid_argument", "location must be a non-empty string or object.")
+            return tool_error("debug_set_breakpoint", "invalid_argument", "location must be a non-empty string or object.")
         return self.backend.debug_set_breakpoint({"location": location})
 
     def debug_list_breakpoints(self) -> JsonObject:
@@ -100,7 +100,7 @@ class HardCIToolService:
     def debug_symbol_info(self, payload: JsonObject | None = None) -> JsonObject:
         symbol = (payload or {}).get("symbol")
         if not isinstance(symbol, str) or not symbol.strip():
-            return tool_error("hardci_debug_symbol_info", "invalid_argument", "symbol must be a non-empty string.")
+            return tool_error("debug_symbol_info", "invalid_argument", "symbol must be a non-empty string.")
         return self.backend.debug_symbol_info(symbol.strip())
 
     def debug_dump_symbol_ihex(self, payload: JsonObject | None = None) -> JsonObject:
@@ -108,10 +108,10 @@ class HardCIToolService:
         symbol = payload.get("symbol")
         output_path = payload.get("output_path")
         if not isinstance(symbol, str) or not symbol.strip():
-            return tool_error("hardci_debug_dump_symbol_ihex", "invalid_argument", "symbol must be a non-empty string.")
+            return tool_error("debug_dump_symbol_ihex", "invalid_argument", "symbol must be a non-empty string.")
         if not isinstance(output_path, str) or not output_path.strip():
-            return tool_error("hardci_debug_dump_symbol_ihex", "invalid_argument", "output_path must be a non-empty string.")
-        output = self.artifacts.validate_output_path(output_path, "hardci_debug_dump_symbol_ihex")
+            return tool_error("debug_dump_symbol_ihex", "invalid_argument", "output_path must be a non-empty string.")
+        output = self.artifacts.validate_output_path(output_path, "debug_dump_symbol_ihex")
         if not output["ok"]:
             return output
         return self.backend.debug_dump_symbol_ihex(symbol.strip(), output["output"])
@@ -120,7 +120,7 @@ class HardCIToolService:
         report = read_last_report(self.config)
         if not report.get("ok") and report.get("error_type") in {"report_not_found", "config_invalid"}:
             return report
-        return {"ok": True, "tool": "hardci_get_last_report", "report": report}
+        return {"ok": True, "tool": "get_last_report", "report": report}
 
     def classify_last_error(self) -> JsonObject:
         return self.backend.classify_last_error()
@@ -128,41 +128,41 @@ class HardCIToolService:
     def call(self, name: str, arguments: JsonObject | None = None) -> JsonObject:
         args = arguments or {}
         dispatch = {
-            "hardci_debugger_info": lambda: self.debugger_info(),
-            "hardci_probe_target": lambda: self.probe_target(),
-            "hardci_flash_firmware": lambda: self.flash_firmware(args),
-            "hardci_artifact_upload": lambda: self.artifact_upload(args),
-            "hardci_reset_target": lambda: self.reset_target(str(args.get("mode", "run"))),
-            "hardci_debug_start_session": lambda: self.debug_start_session(args),
-            "hardci_debug_stop_session": lambda: self.debug_stop_session(args),
-            "hardci_debug_get_session_status": lambda: self.debug_get_session_status(),
-            "hardci_debug_set_breakpoint": lambda: self.debug_set_breakpoint(args),
-            "hardci_debug_list_breakpoints": lambda: self.debug_list_breakpoints(),
-            "hardci_debug_clear_breakpoints": lambda: self.debug_clear_breakpoints(),
-            "hardci_debug_continue": lambda: self.debug_continue(args),
-            "hardci_debug_halt": lambda: self.debug_halt(args),
-            "hardci_debug_get_stop_reason": lambda: self.debug_get_stop_reason(),
-            "hardci_debug_symbol_info": lambda: self.debug_symbol_info(args),
-            "hardci_debug_dump_symbol_ihex": lambda: self.debug_dump_symbol_ihex(args),
-            "hardci_get_last_report": lambda: self.get_last_report(),
-            "hardci_classify_last_error": lambda: self.classify_last_error(),
-            "hardci_com_ports_list": lambda: self.com_ports.list_ports(),
-            "hardci_com_session_start": lambda: self.com_ports.session_start(str(args.get("port_id", "")), bool(args.get("clear_buffer", True))),
-            "hardci_com_session_stop": lambda: self.com_ports.session_stop(str(args.get("port_id", ""))),
-            "hardci_com_write": lambda: self.com_ports.write(str(args.get("port_id", "")), {key: value for key, value in args.items() if key in {"text", "hex"}}),
-            "hardci_com_read": lambda: self.com_ports.read(str(args.get("port_id", "")), args.get("max_bytes"), args.get("wait_timeout_s", 0.0)),
-            "hardci_can_buses_list": lambda: self.can_buses.list_buses(),
-            "hardci_can_session_start": lambda: self.can_buses.session_start(str(args.get("bus_id", "")), bool(args.get("clear_rx_queue", True))),
-            "hardci_can_session_stop": lambda: self.can_buses.session_stop(str(args.get("bus_id", ""))),
-            "hardci_can_send": lambda: self.can_buses.send(str(args.get("bus_id", "")), {key: value for key, value in args.items() if key != "bus_id"}),
-            "hardci_can_read": lambda: self.can_buses.read(str(args.get("bus_id", "")), args.get("max_frames"), args.get("wait_timeout_s", 0.0)),
-            "hardci_adapters_list": lambda: self.adapters.list_adapters(),
-            "hardci_adapter_session_start": lambda: self.adapters.session_start(str(args.get("adapter_id", ""))),
-            "hardci_adapter_session_stop": lambda: self.adapters.session_stop(str(args.get("adapter_id", ""))),
-            "hardci_adapter_set_value": lambda: self.adapters.set_value(str(args.get("adapter_id", "")), adapter_payload(args)),
-            "hardci_adapter_inject_fault": lambda: self.adapters.inject_fault(str(args.get("adapter_id", "")), adapter_payload(args)),
-            "hardci_adapter_clear_fault": lambda: self.adapters.clear_fault(str(args.get("adapter_id", "")), adapter_payload(args)),
-            "hardci_adapter_measure": lambda: self.adapters.measure(str(args.get("adapter_id", "")), adapter_payload(args)),
+            "debugger_info": lambda: self.debugger_info(),
+            "probe_target": lambda: self.probe_target(),
+            "flash_firmware": lambda: self.flash_firmware(args),
+            "artifact_upload": lambda: self.artifact_upload(args),
+            "reset_target": lambda: self.reset_target(str(args.get("mode", "run"))),
+            "debug_start_session": lambda: self.debug_start_session(args),
+            "debug_stop_session": lambda: self.debug_stop_session(args),
+            "debug_get_session_status": lambda: self.debug_get_session_status(),
+            "debug_set_breakpoint": lambda: self.debug_set_breakpoint(args),
+            "debug_list_breakpoints": lambda: self.debug_list_breakpoints(),
+            "debug_clear_breakpoints": lambda: self.debug_clear_breakpoints(),
+            "debug_continue": lambda: self.debug_continue(args),
+            "debug_halt": lambda: self.debug_halt(args),
+            "debug_get_stop_reason": lambda: self.debug_get_stop_reason(),
+            "debug_symbol_info": lambda: self.debug_symbol_info(args),
+            "debug_dump_symbol_ihex": lambda: self.debug_dump_symbol_ihex(args),
+            "get_last_report": lambda: self.get_last_report(),
+            "classify_last_error": lambda: self.classify_last_error(),
+            "com_ports_list": lambda: self.com_ports.list_ports(),
+            "com_session_start": lambda: self.com_ports.session_start(str(args.get("port_id", "")), bool(args.get("clear_buffer", True))),
+            "com_session_stop": lambda: self.com_ports.session_stop(str(args.get("port_id", ""))),
+            "com_write": lambda: self.com_ports.write(str(args.get("port_id", "")), {key: value for key, value in args.items() if key in {"text", "hex"}}),
+            "com_read": lambda: self.com_ports.read(str(args.get("port_id", "")), args.get("max_bytes"), args.get("wait_timeout_s", 0.0)),
+            "can_buses_list": lambda: self.can_buses.list_buses(),
+            "can_session_start": lambda: self.can_buses.session_start(str(args.get("bus_id", "")), bool(args.get("clear_rx_queue", True))),
+            "can_session_stop": lambda: self.can_buses.session_stop(str(args.get("bus_id", ""))),
+            "can_send": lambda: self.can_buses.send(str(args.get("bus_id", "")), {key: value for key, value in args.items() if key != "bus_id"}),
+            "can_read": lambda: self.can_buses.read(str(args.get("bus_id", "")), args.get("max_frames"), args.get("wait_timeout_s", 0.0)),
+            "adapters_list": lambda: self.adapters.list_adapters(),
+            "adapter_session_start": lambda: self.adapters.session_start(str(args.get("adapter_id", ""))),
+            "adapter_session_stop": lambda: self.adapters.session_stop(str(args.get("adapter_id", ""))),
+            "adapter_set_value": lambda: self.adapters.set_value(str(args.get("adapter_id", "")), adapter_payload(args)),
+            "adapter_inject_fault": lambda: self.adapters.inject_fault(str(args.get("adapter_id", "")), adapter_payload(args)),
+            "adapter_clear_fault": lambda: self.adapters.clear_fault(str(args.get("adapter_id", "")), adapter_payload(args)),
+            "adapter_measure": lambda: self.adapters.measure(str(args.get("adapter_id", "")), adapter_payload(args)),
         }
         if name in dispatch:
             return dispatch[name]()

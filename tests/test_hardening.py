@@ -194,7 +194,7 @@ def test_artifact_upload_rejects_oversized_local_file(tmp_path: Path) -> None:
     oversized.write_bytes(b"\0" * (config.artifacts.max_upload_size_mb * 1024 * 1024 + 1))
     service = HardCIToolService(config)
 
-    result = service.call("hardci_artifact_upload", {"image_path": "build/big.bin"})
+    result = service.call("artifact_upload", {"image_path": "build/big.bin"})
 
     assert result["ok"] is False
     assert result["error_type"] == "artifact_too_large"
@@ -252,21 +252,21 @@ def test_bridge_stderr_is_capped_and_surfaced_in_errors() -> None:
 def test_debug_set_breakpoint_requires_location(tmp_path: Path) -> None:
     service = HardCIToolService(load_test_config(tmp_path))
 
-    result = service.call("hardci_debug_set_breakpoint", {})
+    result = service.call("debug_set_breakpoint", {})
 
     assert result["ok"] is False
     assert result["error_type"] == "invalid_argument"
 
 
 PERMISSION_GATE_CASES = [
-    ("allow_probe", "hardci_probe_target", {}),
-    ("allow_flash", "hardci_flash_firmware", {"image_path": "build/app.elf"}),
-    ("allow_reset", "hardci_reset_target", {}),
-    ("allow_com_read", "hardci_com_session_start", {"port_id": "dut"}),
-    ("allow_com_write", "hardci_com_write", {"port_id": "dut", "text": "hi"}),
-    ("allow_can_read", "hardci_can_read", {"bus_id": "bench"}),
-    ("allow_can_write", "hardci_can_send", {"bus_id": "bench", "frame_id": 1, "data_hex": "00"}),
-    ("allow_adapter_read", "hardci_adapter_measure", {"adapter_id": "ntc", "channel": "temp"}),
+    ("allow_probe", "probe_target", {}),
+    ("allow_flash", "flash_firmware", {"image_path": "build/app.elf"}),
+    ("allow_reset", "reset_target", {}),
+    ("allow_com_read", "com_session_start", {"port_id": "dut"}),
+    ("allow_com_write", "com_write", {"port_id": "dut", "text": "hi"}),
+    ("allow_can_read", "can_read", {"bus_id": "bench"}),
+    ("allow_can_write", "can_send", {"bus_id": "bench", "frame_id": 1, "data_hex": "00"}),
+    ("allow_adapter_read", "adapter_measure", {"adapter_id": "ntc", "channel": "temp"}),
 ]
 
 

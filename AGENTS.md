@@ -35,9 +35,9 @@ follow this model:
 2. Make the `hardci` CLI available user-locally.
 3. Install or update the agent setup skill with `hardci skill-install --agent <agent>`.
 4. Return to the firmware project directory.
-5. Create or update `.hardci/config.yaml` without overwriting existing policy unless explicitly asked.
+5. Create or update the local `.hardci/config.yaml` without overwriting existing policy unless explicitly asked.
 6. Validate with `hardci doctor`.
-7. Add or merge the MCP entry only if the MCP client needs project discovery.
+7. Add or merge the MCP entry in the user's MCP/client config when possible; use project `.mcp.json` only when the client needs project discovery.
 8. Use HardCI MCP tools for hardware actions.
 
 Preferred user-local install methods for agents:
@@ -60,9 +60,9 @@ hardci init
 hardci doctor
 ```
 
-If `.hardci/config.yaml` already exists, preserve policy decisions and edit only project-specific values. Do not run `hardci init --force` unless the user explicitly asks for a reset.
+If `.hardci/config.yaml` already exists, preserve policy decisions and edit only project-specific values. Do not run `hardci init --force` unless the user explicitly asks for a reset. Do not stage or commit `.hardci/config.yaml` unless the user explicitly asks for a shared sanitized policy file.
 
-If `.mcp.json` already exists, merge a `hardci` server entry and preserve existing servers. Do not overwrite existing MCP configuration with `hardci mcp-config --force` unless explicitly asked.
+If `.mcp.json` already exists, merge a `hardci` server entry and preserve existing servers. Do not overwrite existing MCP configuration with `hardci mcp-config --force` unless explicitly asked. Do not commit absolute user paths such as `/home/.../.local/bin/hardci` to project files; those belong in the user's MCP/client config.
 
 For opencode, `opencode.json` uses its own `mcp` shape with a `type: "local"` entry and a command array. Do not paste `.mcp.json`'s `mcpServers` shape into `opencode.json`.
 
@@ -79,16 +79,16 @@ For board, PCB, flash, reset, serial, CAN, adapter, or hardware unit-test tasks,
 Examples:
 
 ```bash
-hardci call hardci_probe_target --config .hardci/config.yaml
-hardci call hardci_flash_firmware --config .hardci/config.yaml --args '{"image_path":"build/firmware.elf"}'
-hardci call hardci_reset_target --config .hardci/config.yaml --args '{"mode":"run"}'
+hardci call probe_target --config .hardci/config.yaml
+hardci call flash_firmware --config .hardci/config.yaml --args '{"image_path":"build/firmware.elf"}'
+hardci call reset_target --config .hardci/config.yaml --args '{"mode":"run"}'
 ```
 
 The fallback is still HardCI and still policy-gated. Raw OpenOCD, arbitrary debugger shells, direct serial-device access, direct CAN-adapter access, and direct test-adapter access remain bypasses.
 
 ## Configuration Rules
 
-Use `hardci init` to create the starter config, then edit only values that can be inferred from project files, detected hardware, or the user's instructions. If board, debugger, COM port, CAN bus, or artifact path cannot be inferred, ask one concise question instead of guessing.
+Use `hardci init` to create the starter config, then edit only values that can be inferred from project files, detected hardware, or the user's instructions. If board, debugger, COM port, CAN bus, debug-adapter IP, or artifact path cannot be inferred, ask one concise question instead of guessing. COM ports, CAN interfaces, probe IDs, and debug-adapter IP addresses belong in `.hardci/config.yaml` because different firmware checkouts can use different hardware, but the file remains local by default.
 
 Safe first path unless the project clearly says otherwise:
 
@@ -115,13 +115,13 @@ permissions:
 Use this loop for firmware tasks:
 
 1. Build firmware.
-2. Check debugger availability with `hardci_debugger_info` if setup is unclear.
-3. Probe with `hardci_probe_target` before flashing.
-4. Flash only validated artifacts with `hardci_flash_firmware`.
+2. Check debugger availability with `debugger_info` if setup is unclear.
+3. Probe with `probe_target` before flashing.
+4. Flash only validated artifacts with `flash_firmware`.
 5. Reset only when needed or requested.
 6. Use configured COM, CAN, and adapter IDs through HardCI MCP tools.
-7. Read the structured result and `hardci_get_last_report`.
-8. Diagnose failures with `hardci_classify_last_error`.
+7. Read the structured result and `get_last_report`.
+8. Diagnose failures with `classify_last_error`.
 
 Use HardCI MCP tools for hardware actions. Do not bypass them with raw OpenOCD commands, arbitrary debugger shells, direct serial-device access, direct CAN-adapter access, or direct test-adapter access when a HardCI tool is available.
 

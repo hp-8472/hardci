@@ -6,6 +6,10 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 
 ## [Unreleased]
 
+### Changed
+
+- MCP tools now use short names such as `probe_target` and `flash_firmware`.
+
 ## [0.2.0] - 2026-07-06
 
 ### Added

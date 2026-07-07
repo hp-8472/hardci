@@ -44,25 +44,25 @@ class PyOCDBackend:
     def info(self) -> JsonObject:
         resolved = self._resolve_executable()
         if not resolved["ok"]:
-            return {"tool": "hardci_debugger_info", **resolved}
+            return {"tool": "debugger_info", **resolved}
         command = [*invocation(str(resolved["executable_path"])), "--version"]
         completed = spawn_command(command, self.config.work_dir, min(self.config.debugger.timeout_s, 10))
         if completed.not_found:
-            return {"tool": "hardci_debugger_info", **PYOCD_NOT_FOUND}
+            return {"tool": "debugger_info", **PYOCD_NOT_FOUND}
         if completed.timed_out:
-            return {"ok": False, "tool": "hardci_debugger_info", "backend": self.backend_name, "executable": resolved["executable"], "error_type": "timeout", "summary": "Debugger version check timed out."}
+            return {"ok": False, "tool": "debugger_info", "backend": self.backend_name, "executable": resolved["executable"], "error_type": "timeout", "summary": "Debugger version check timed out."}
         output = f"{completed.stdout}{completed.stderr}".strip()
         if completed.returncode != 0:
             backend_error_type = self._classify_output(output)
             error_type = self._public_error_type(backend_error_type)
-            return {"ok": False, "tool": "hardci_debugger_info", "backend": self.backend_name, "executable": resolved["executable"], "error_type": error_type, "backend_error_type": backend_error_type, "summary": self._summary_for_error(error_type)}
+            return {"ok": False, "tool": "debugger_info", "backend": self.backend_name, "executable": resolved["executable"], "error_type": error_type, "backend_error_type": backend_error_type, "summary": self._summary_for_error(error_type)}
         version = output.splitlines()[0] if output else "pyOCD version output was empty."
-        return {"ok": True, "tool": "hardci_debugger_info", "backend": self.backend_name, "executable": resolved["executable"], "probe_id": self.config.debugger.probe_id, "target_type": self.config.debugger.target_type, "version": version, "summary": "pyOCD is available."}
+        return {"ok": True, "tool": "debugger_info", "backend": self.backend_name, "executable": resolved["executable"], "probe_id": self.config.debugger.probe_id, "target_type": self.config.debugger.target_type, "version": version, "summary": "pyOCD is available."}
 
     def probe_target(self) -> JsonObject:
         if not self.config.permissions.allow_probe:
-            return self._permission_denied("hardci_probe_target", "Probing is disabled by .hardci/config.yaml.")
-        result = self._run_pyocd("hardci_probe_target", ["commander", "--command", "status", *self._connection_args()])
+            return self._permission_denied("probe_target", "Probing is disabled by .hardci/config.yaml.")
+        result = self._run_pyocd("probe_target", ["commander", "--command", "status", *self._connection_args()])
         if result.get("ok"):
             result["target_detected"] = True
             result["summary"] = "Target detected through pyOCD."
@@ -70,27 +70,27 @@ class PyOCDBackend:
 
     def flash_firmware(self, artifact: JsonObject) -> JsonObject:
         if not self.config.permissions.allow_flash:
-            return self._permission_denied("hardci_flash_firmware", "Flashing is disabled by .hardci/config.yaml.")
+            return self._permission_denied("flash_firmware", "Flashing is disabled by .hardci/config.yaml.")
         if self.config.permissions.allow_raw_debugger_commands:
-            return self._permission_denied("hardci_flash_firmware", "Flashing is disabled while raw debugger commands are allowed.")
+            return self._permission_denied("flash_firmware", "Flashing is disabled while raw debugger commands are allowed.")
         if self.config.permissions.allow_mass_erase:
-            return self._permission_denied("hardci_flash_firmware", "Flashing is disabled while mass erase is allowed.")
+            return self._permission_denied("flash_firmware", "Flashing is disabled while mass erase is allowed.")
 
         artifact_path = str(artifact["resolved_path"])
         address_args: list[str] = []
         if Path(artifact_path).suffix.lower() == ".bin":
             if self.config.debugger.flash_address is None:
-                return {"ok": False, "tool": "hardci_flash_firmware", "backend": self.backend_name, "error_type": "invalid_argument", "summary": "Flashing .bin artifacts with pyOCD requires debugger.flash_address.", "artifact": self._artifact_summary(artifact)}
+                return {"ok": False, "tool": "flash_firmware", "backend": self.backend_name, "error_type": "invalid_argument", "summary": "Flashing .bin artifacts with pyOCD requires debugger.flash_address.", "artifact": self._artifact_summary(artifact)}
             address_args = ["--base-address", self.config.debugger.flash_address]
 
-        result = self._run_pyocd("hardci_flash_firmware", ["flash", *self._connection_args(), *address_args, artifact_path])
+        result = self._run_pyocd("flash_firmware", ["flash", *self._connection_args(), *address_args, artifact_path])
         result["artifact"] = self._artifact_summary(artifact)
         result["verify"] = True
         if not result.get("ok"):
             result["reset_after_flash"] = False
             return self._write_action_report(result)
 
-        reset = self._run_pyocd("hardci_flash_firmware", ["commander", "--command", "reset", *self._connection_args()])
+        reset = self._run_pyocd("flash_firmware", ["commander", "--command", "reset", *self._connection_args()])
         if not reset.get("ok"):
             reset["artifact"] = self._artifact_summary(artifact)
             reset["verify"] = True
@@ -105,57 +105,57 @@ class PyOCDBackend:
     def reset_target(self, mode: str = "run") -> JsonObject:
         allowed_modes = ["run", "halt", "init"]
         if mode not in allowed_modes:
-            return {"ok": False, "tool": "hardci_reset_target", "error_type": "invalid_argument", "summary": "Invalid reset mode.", "allowed_values": allowed_modes}
+            return {"ok": False, "tool": "reset_target", "error_type": "invalid_argument", "summary": "Invalid reset mode.", "allowed_values": allowed_modes}
         if not self.config.permissions.allow_reset:
-            return self._permission_denied("hardci_reset_target", "Reset is disabled by .hardci/config.yaml.")
+            return self._permission_denied("reset_target", "Reset is disabled by .hardci/config.yaml.")
         commander_command = "reset" if mode == "run" else "reset halt"
-        result = self._run_pyocd("hardci_reset_target", ["commander", "--command", commander_command, *self._connection_args()])
+        result = self._run_pyocd("reset_target", ["commander", "--command", commander_command, *self._connection_args()])
         result["mode"] = mode
         if result.get("ok"):
             result["summary"] = f"Target reset with mode '{mode}'."
         return self._write_action_report(result)
 
     def debug_start_session(self, artifact: JsonObject | None = None, mode: str = "attach", timeout_s: float | None = None) -> JsonObject:
-        return self._unsupported_debug_tool("hardci_debug_start_session")
+        return self._unsupported_debug_tool("debug_start_session")
 
     def debug_stop_session(self, timeout_s: float | None = None) -> JsonObject:
-        return self._unsupported_debug_tool("hardci_debug_stop_session")
+        return self._unsupported_debug_tool("debug_stop_session")
 
     def debug_get_session_status(self) -> JsonObject:
-        return self._unsupported_debug_tool("hardci_debug_get_session_status")
+        return self._unsupported_debug_tool("debug_get_session_status")
 
     def debug_set_breakpoint(self, location: JsonObject | None = None) -> JsonObject:
-        return self._unsupported_debug_tool("hardci_debug_set_breakpoint")
+        return self._unsupported_debug_tool("debug_set_breakpoint")
 
     def debug_list_breakpoints(self) -> JsonObject:
-        return self._unsupported_debug_tool("hardci_debug_list_breakpoints")
+        return self._unsupported_debug_tool("debug_list_breakpoints")
 
     def debug_clear_breakpoints(self) -> JsonObject:
-        return self._unsupported_debug_tool("hardci_debug_clear_breakpoints")
+        return self._unsupported_debug_tool("debug_clear_breakpoints")
 
     def debug_continue(self, timeout_s: float | None = None) -> JsonObject:
-        return self._unsupported_debug_tool("hardci_debug_continue")
+        return self._unsupported_debug_tool("debug_continue")
 
     def debug_halt(self, timeout_s: float | None = None) -> JsonObject:
-        return self._unsupported_debug_tool("hardci_debug_halt")
+        return self._unsupported_debug_tool("debug_halt")
 
     def debug_get_stop_reason(self) -> JsonObject:
-        return self._unsupported_debug_tool("hardci_debug_get_stop_reason")
+        return self._unsupported_debug_tool("debug_get_stop_reason")
 
     def debug_symbol_info(self, symbol: str = "") -> JsonObject:
-        return self._unsupported_debug_tool("hardci_debug_symbol_info")
+        return self._unsupported_debug_tool("debug_symbol_info")
 
     def debug_dump_symbol_ihex(self, symbol: str = "", output: JsonObject | None = None) -> JsonObject:
-        return self._unsupported_debug_tool("hardci_debug_dump_symbol_ihex")
+        return self._unsupported_debug_tool("debug_dump_symbol_ihex")
 
     def classify_last_error(self) -> JsonObject:
         report = read_last_report(self.config)
         if not report.get("ok") and report.get("error_type") == "report_not_found":
-            return {"ok": False, "tool": "hardci_classify_last_error", "error_type": "report_not_found", "summary": "No HardCI report has been written yet."}
+            return {"ok": False, "tool": "classify_last_error", "error_type": "report_not_found", "summary": "No HardCI report has been written yet."}
         if report.get("ok"):
-            return {"ok": True, "tool": "hardci_classify_last_error", "error_type": None, "summary": "Last HardCI report did not contain an error."}
+            return {"ok": True, "tool": "classify_last_error", "error_type": None, "summary": "Last HardCI report did not contain an error."}
         error_type = str(report.get("error_type", "unknown_debugger_error"))
-        result = {"ok": True, "tool": "hardci_classify_last_error", "error_type": error_type, "summary": report.get("summary", "Last HardCI report contained an error."), "likely_causes": report.get("likely_causes", self._likely_causes(error_type)), "report_path": report.get("report_path"), "log_path": report.get("log_path")}
+        result = {"ok": True, "tool": "classify_last_error", "error_type": error_type, "summary": report.get("summary", "Last HardCI report contained an error."), "likely_causes": report.get("likely_causes", self._likely_causes(error_type)), "report_path": report.get("report_path"), "log_path": report.get("log_path")}
         if "backend_error_type" in report:
             result["backend_error_type"] = report["backend_error_type"]
         return result
@@ -252,7 +252,7 @@ class PyOCDBackend:
             return "verify_failed"
         if "reset" in lower and contains_any(lower, ["failed", "error"]):
             return "reset_failed"
-        if tool == "hardci_flash_firmware" and contains_any(lower, ["failed", "error"]):
+        if tool == "flash_firmware" and contains_any(lower, ["failed", "error"]):
             return "flash_failed"
         return "unknown_debugger_error"
 

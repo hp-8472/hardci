@@ -26,16 +26,18 @@ hardci init
 hardci doctor
 ```
 
-If `.hardci/config.yaml` already exists, preserve it and edit only project-specific values. Do not run `hardci init --force` unless the user explicitly asks.
+If `.hardci/config.yaml` already exists, preserve it and edit only project-specific values. Do not run `hardci init --force` unless the user explicitly asks. Do not stage or commit `.hardci/config.yaml` unless the user explicitly asks for a shared sanitized policy file.
 
-If `.mcp.json` already exists, merge a `hardci` MCP server entry and preserve existing servers. For opencode, use `opencode.json`'s `mcp` shape with `type: "local"` and a command array; do not paste `.mcp.json`'s `mcpServers` object into `opencode.json`.
+If `.mcp.json` already exists, merge a `hardci` MCP server entry and preserve existing servers. Put absolute user paths such as `/home/.../.local/bin/hardci` in the user's MCP/client config when possible; keep project MCP files portable. For opencode, use `opencode.json`'s `mcp` shape with `type: "local"` and a command array; do not paste `.mcp.json`'s `mcpServers` object into `opencode.json`.
 
-If the running agent session does not expose `hardci_*` MCP tools, run `hardci doctor` from the firmware project directory. If MCP config was just added or changed, tell the user to restart the agent client. For one-shot stateless actions while MCP is unavailable, use the policy-gated fallback:
+COM ports, CAN interfaces, probe IDs, and debug-adapter IP addresses belong in `.hardci/config.yaml` because they describe the hardware assignment for this firmware checkout. The config remains local by default.
+
+If the running agent session does not expose HardCI MCP tools, run `hardci doctor` from the firmware project directory. If MCP config was just added or changed, tell the user to restart the agent client. For one-shot stateless actions while MCP is unavailable, use the policy-gated fallback:
 
 ```bash
-hardci call hardci_probe_target --config .hardci/config.yaml
-hardci call hardci_flash_firmware --config .hardci/config.yaml --args '{"image_path":"build/firmware.elf"}'
-hardci call hardci_reset_target --config .hardci/config.yaml --args '{"mode":"run"}'
+hardci call probe_target --config .hardci/config.yaml
+hardci call flash_firmware --config .hardci/config.yaml --args '{"image_path":"build/firmware.elf"}'
+hardci call reset_target --config .hardci/config.yaml --args '{"mode":"run"}'
 ```
 
 Do not use `hardci call` for session tools such as COM/CAN/debug sessions; use MCP, or `hardci com-stdio --config .hardci/config.yaml --port <port_id>` only for a single configured serial stream when explicitly needed.

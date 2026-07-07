@@ -93,7 +93,7 @@ hardci init
 hardci doctor
 ```
 
-If `.hardci/config.yaml` already exists, do not overwrite it. Edit only the fields required for the current setup.
+If `.hardci/config.yaml` already exists, do not overwrite it. Edit only the fields required for the current setup. Do not stage or commit `.hardci/config.yaml` unless the user explicitly asks for a shared sanitized policy file.
 
 Reference first path unless the project or user clearly says otherwise:
 
@@ -106,13 +106,13 @@ Reference first path unless the project or user clearly says otherwise:
 
 Do not add `.srec` or other extensions just because a build directory contains them. Add only formats the user wants to flash and the selected debugger backend supports.
 
-Use `hardci com-ports` to discover serial devices. Configure a COM port only when it is clearly the DUT UART or the user confirms it. If multiple probes or serial devices are present, set `debugger.probe_id` and ask when selection is ambiguous.
+Use `hardci com-ports` to discover serial devices. Configure a COM port only when it is clearly the DUT UART or the user confirms it. Keep COM ports, CAN interfaces, probe IDs, and debug-adapter IP addresses in `.hardci/config.yaml` because they are project-checkout hardware assignments, but keep that config local by default. If multiple probes or serial devices are present, set `debugger.probe_id` and ask when selection is ambiguous.
 
 Expected healthy `hardci doctor` result: `ok: true`, `summary: "HardCI configuration loaded and debugger checked."`, and a nested debugger result with `ok: true`.
 
 ## Configure MCP
 
-`.mcp.json` is only the MCP launch entry. If it does not exist, `hardci mcp-config --output .mcp.json` can create it.
+MCP config is launcher config. Prefer the user's MCP/client configuration for platform-dependent values such as absolute executable paths. `.mcp.json` is only needed when the MCP client discovers servers from the project. If it does not exist and the client needs it, `hardci mcp-config --output .mcp.json` can create a portable entry.
 
 If `.mcp.json` already exists, merge this server entry instead of overwriting the file:
 
@@ -127,7 +127,7 @@ If `.mcp.json` already exists, merge this server entry instead of overwriting th
 }
 ```
 
-If the MCP client may not inherit `PATH`, use the absolute user-local executable path, for example `/home/<user>/.local/bin/hardci`.
+If the MCP client may not inherit `PATH`, use the absolute user-local executable path, for example `/home/<user>/.local/bin/hardci`, in the user's MCP/client config. Do not commit that path to project files.
 
 For opencode, use `opencode.json`'s native `mcp` shape instead of `.mcp.json`'s `mcpServers` shape:
 
@@ -149,7 +149,7 @@ For opencode, use `opencode.json`'s native `mcp` shape instead of `.mcp.json`'s 
 
 ## If MCP Tools Are Not Visible
 
-If the running agent session does not expose `hardci_*` MCP tools, do not fall back to raw OpenOCD, direct serial devices, direct CAN adapters, or direct test adapters.
+If the running agent session does not expose HardCI MCP tools, do not fall back to raw OpenOCD, direct serial devices, direct CAN adapters, or direct test adapters.
 
 1. Run `hardci doctor` from the firmware project directory.
 2. Confirm `.hardci/config.yaml` exists and the MCP entry points to `hardci mcp-stdio --config .hardci/config.yaml`.
@@ -159,25 +159,25 @@ If the running agent session does not expose `hardci_*` MCP tools, do not fall b
 Examples:
 
 ```bash
-hardci call hardci_probe_target --config .hardci/config.yaml
-hardci call hardci_flash_firmware --config .hardci/config.yaml --args '{"image_path":"build/firmware.elf"}'
-hardci call hardci_reset_target --config .hardci/config.yaml --args '{"mode":"run"}'
+hardci call probe_target --config .hardci/config.yaml
+hardci call flash_firmware --config .hardci/config.yaml --args '{"image_path":"build/firmware.elf"}'
+hardci call reset_target --config .hardci/config.yaml --args '{"mode":"run"}'
 ```
 
-`hardci call` starts a fresh process for a single tool call. It intentionally rejects session-based tools such as `hardci_com_session_start`, `hardci_can_session_start`, and `hardci_debug_start_session` with `stateful_tool_requires_mcp`. Use MCP for those, or `hardci com-stdio --config .hardci/config.yaml --port <port_id>` for one configured serial stream when the user explicitly needs a plain-text serial relay.
+`hardci call` starts a fresh process for a single tool call. It intentionally rejects session-based tools such as `com_session_start`, `can_session_start`, and `debug_start_session` with `stateful_tool_requires_mcp`. Use MCP for those, or `hardci com-stdio --config .hardci/config.yaml --port <port_id>` for one configured serial stream when the user explicitly needs a plain-text serial relay.
 
 ## Use The Tools
 
 Use `tools/list` to discover available MCP tools, then follow this loop:
 
 1. Build firmware.
-2. Check debugger availability with `hardci_debugger_info` if setup is unclear.
-3. Probe with `hardci_probe_target`.
-4. Flash with `hardci_flash_firmware` using `image_path`, or call `hardci_artifact_upload` first and flash the returned `artifact_id`.
-5. For serial feedback, use `hardci_com_session_start`, `hardci_com_write`, `hardci_com_read`, and `hardci_com_session_stop`.
-6. For CAN, use `hardci_can_session_start`, `hardci_can_send`, `hardci_can_read`, and `hardci_can_session_stop`.
+2. Check debugger availability with `debugger_info` if setup is unclear.
+3. Probe with `probe_target`.
+4. Flash with `flash_firmware` using `image_path`, or call `artifact_upload` first and flash the returned `artifact_id`.
+5. For serial feedback, use `com_session_start`, `com_write`, `com_read`, and `com_session_stop`.
+6. For CAN, use `can_session_start`, `can_send`, `can_read`, and `can_session_stop`.
 7. For simulated sensors, loads, and faults, use the configured adapter tools.
-8. Read the tool result and `hardci_get_last_report`; diagnose failures with `hardci_classify_last_error`.
+8. Read the tool result and `get_last_report`; diagnose failures with `classify_last_error`.
 
 Do not use raw OpenOCD commands, arbitrary COM-port shell tools, direct CAN adapter tools, or direct test-adapter access when a HardCI MCP tool is available. Treat `permission_denied` as authoritative and stop.
 

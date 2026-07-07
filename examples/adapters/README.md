@@ -18,12 +18,12 @@ adapters:
 ## Use from an agent (MCP)
 
 ```text
-hardci_adapter_session_start  {"adapter_id": "ntc_sim"}
-hardci_adapter_set_value      {"adapter_id": "ntc_sim", "channel": "temperature", "value": 85}
-hardci_adapter_inject_fault   {"adapter_id": "ntc_sim", "fault": "open"}
-hardci_adapter_measure        {"adapter_id": "ntc_sim", "channel": "resistance"}
-hardci_adapter_clear_fault    {"adapter_id": "ntc_sim"}
-hardci_adapter_session_stop   {"adapter_id": "ntc_sim"}
+adapter_session_start  {"adapter_id": "ntc_sim"}
+adapter_set_value      {"adapter_id": "ntc_sim", "channel": "temperature", "value": 85}
+adapter_inject_fault   {"adapter_id": "ntc_sim", "fault": "open"}
+adapter_measure        {"adapter_id": "ntc_sim", "channel": "resistance"}
+adapter_clear_fault    {"adapter_id": "ntc_sim"}
+adapter_session_stop   {"adapter_id": "ntc_sim"}
 ```
 
 Typical diagnosis loop: flash firmware → set 25 °C → assert nominal readings over UART → inject `open` → assert the firmware reports the sensor fault → clear → assert recovery.

@@ -33,10 +33,10 @@ hardci doctor
 With the project-local `.mcp.json` from the [top-level README](../../README.md), an agent drives:
 
 ```text
-hardci_flash_firmware     {"image_path": "build/Debug/nucleo-f446re_demo.elf"}
-hardci_com_session_start  {"port_id": "dut_uart"}
-hardci_reset_target       {"mode": "run"}
-hardci_com_read           {"port_id": "dut_uart", "wait_timeout_s": 5}
+flash_firmware     {"image_path": "build/Debug/nucleo-f446re_demo.elf"}
+com_session_start  {"port_id": "dut_uart"}
+reset_target       {"mode": "run"}
+com_read           {"port_id": "dut_uart", "wait_timeout_s": 5}
 → feedback contains "Hello World"
 ```
 

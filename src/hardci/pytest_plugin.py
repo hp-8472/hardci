@@ -3,7 +3,7 @@
 Usage in a firmware project with a `.hardci/config.yaml`:
 
     def test_open_sensor_diagnosis(hardci):
-        started = hardci.call("hardci_adapter_session_start", {"adapter_id": "ntc_sim"})
+        started = hardci.call("adapter_session_start", {"adapter_id": "ntc_sim"})
         assert started["ok"] is True
 
 Tests using the fixtures are skipped when no HardCI configuration file exists,

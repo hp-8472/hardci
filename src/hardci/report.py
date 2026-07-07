@@ -58,7 +58,7 @@ def read_last_report(config: HardCIConfig) -> JsonObject:
     if not path.exists():
         return {
             "ok": False,
-            "tool": "hardci_get_last_report",
+            "tool": "get_last_report",
             "error_type": "report_not_found",
             "summary": "No HardCI report has been written yet.",
         }
@@ -67,7 +67,7 @@ def read_last_report(config: HardCIConfig) -> JsonObject:
     except json.JSONDecodeError:
         return {
             "ok": False,
-            "tool": "hardci_get_last_report",
+            "tool": "get_last_report",
             "error_type": "config_invalid",
             "summary": "Last HardCI report is not valid JSON.",
             "report_path": display_path(config, report_path),

@@ -20,7 +20,7 @@ hardci doctor
 hardci mcp-config --output .mcp.json
 ```
 
-Each firmware project keeps its own `.hardci/config.yaml` — the policy for that project's target, debugger, permissions, artifact roots, com_ports, can_buses, and adapters.
+Each firmware checkout keeps its own local `.hardci/config.yaml` — the policy for that target, debugger, permissions, artifact roots, com_ports, can_buses, debug-adapter IPs, and adapters. Do not commit it by default; COM ports and adapter IPs still belong there because different projects can use different hardware.
 
 MCP stdio command:
 
@@ -28,12 +28,12 @@ MCP stdio command:
 hardci mcp-stdio --config .hardci/config.yaml
 ```
 
-If `hardci_*` MCP tools are not visible in the current agent session, run `hardci doctor`, verify MCP config, and tell the user to restart the agent after config changes. For one-shot stateless actions, use the policy-gated CLI fallback:
+If HardCI MCP tools are not visible in the current agent session, run `hardci doctor`, verify MCP config, and tell the user to restart the agent after config changes. For one-shot stateless actions, use the policy-gated CLI fallback:
 
 ```bash
-hardci call hardci_probe_target --config .hardci/config.yaml
-hardci call hardci_flash_firmware --config .hardci/config.yaml --args '{"image_path":"build/firmware.elf"}'
-hardci call hardci_reset_target --config .hardci/config.yaml --args '{"mode":"run"}'
+hardci call probe_target --config .hardci/config.yaml
+hardci call flash_firmware --config .hardci/config.yaml --args '{"image_path":"build/firmware.elf"}'
+hardci call reset_target --config .hardci/config.yaml --args '{"mode":"run"}'
 ```
 
 `hardci call` rejects session tools such as COM/CAN/debug sessions; use MCP for those, or `hardci com-stdio --config .hardci/config.yaml --port <port_id>` for one configured serial stream.
@@ -41,13 +41,13 @@ hardci call hardci_reset_target --config .hardci/config.yaml --args '{"mode":"ru
 Use MCP tools for hardware actions:
 
 ```text
-hardci_debugger_info, hardci_probe_target, hardci_artifact_upload,
-hardci_flash_firmware, hardci_reset_target,
-hardci_com_session_start/_stop, hardci_com_write, hardci_com_read,
-hardci_can_session_start/_stop, hardci_can_send, hardci_can_read,
-hardci_adapter_session_start/_stop, hardci_adapter_set_value,
-hardci_adapter_inject_fault, hardci_adapter_clear_fault, hardci_adapter_measure,
-hardci_get_last_report, hardci_classify_last_error
+debugger_info, probe_target, artifact_upload,
+flash_firmware, reset_target,
+com_session_start/_stop, com_write, com_read,
+can_session_start/_stop, can_send, can_read,
+adapter_session_start/_stop, adapter_set_value,
+adapter_inject_fault, adapter_clear_fault, adapter_measure,
+get_last_report, classify_last_error
 ```
 
 Required workflow:

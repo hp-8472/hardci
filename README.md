@@ -28,7 +28,7 @@ Every hardware action is validated against the project policy, executed with tim
 
 ## Install
 
-Install HardCI once for your user account, then configure each firmware project with its own `.hardci/` policy directory.
+Install HardCI once for your user account, then configure each firmware checkout with its own local `.hardci/` policy directory.
 
 Recommended for a persistent user-local CLI:
 
@@ -70,6 +70,8 @@ hardci init
 hardci doctor
 ```
 
+`.hardci/config.yaml` is project-local runtime configuration, but it is normally not a shared file to commit. It may contain lab-specific COM ports, CAN interfaces, debug-adapter IP addresses, probe serial numbers, or local artifact roots. Keep it in the firmware checkout so different projects can use different hardware, but add it to the firmware repository's ignore rules unless your team intentionally maintains a shared sanitized policy template.
+
 If you want an AI agent to do the project setup, open the firmware project in the agent and ask:
 
 > Install HardCI from https://github.com/hp-8472/hardci and set it up for this project.
@@ -78,7 +80,7 @@ Agents follow [AGENTS.md](AGENTS.md) and [AI_AGENT_QUICKSTART.md](AI_AGENT_QUICK
 
 ## MCP Entry
 
-Project-local `.mcp.json`:
+MCP client configuration is launcher configuration. Put platform-dependent values such as the absolute `hardci` executable path in the user's MCP/client config when the client supports it. A project-local `.mcp.json` is only needed for clients that discover MCP servers from the project, and should stay portable:
 
 ```json
 {
@@ -91,11 +93,11 @@ Project-local `.mcp.json`:
 }
 ```
 
-If `.mcp.json` already exists, merge the `hardci` entry and keep the existing MCP servers. If your MCP client does not inherit your shell `PATH`, use the absolute path to the user-local executable, for example `~/.local/bin/hardci`.
+If `.mcp.json` already exists, merge the `hardci` entry and keep the existing MCP servers. If your MCP client does not inherit your shell `PATH`, put the absolute path to the user-local executable, for example `~/.local/bin/hardci`, in the user's MCP/client configuration instead of committing it to the firmware project.
 
 ## Configuration
 
-`hardci init` writes a starter `.hardci/config.yaml`. The file is the policy — it names the target, the debugger backend, allowed artifact roots, named serial ports and CAN buses, and per-action permissions:
+`hardci init` writes a starter `.hardci/config.yaml`. The file is the local policy for this firmware checkout: it names the target, debugger backend, allowed artifact roots, named serial ports, CAN buses, debug adapter connection values, and per-action permissions:
 
 ```yaml
 target:
@@ -145,22 +147,22 @@ Export the full JSON schema with `hardci schema --output hardci-config.schema.js
 
 | Group | Tools | Notes |
 |-------|-------|-------|
-| Debugger | `hardci_debugger_info`, `hardci_probe_target`, `hardci_reset_target` | OpenOCD, pyOCD, or STM32CubeProgrammer CLI |
-| Firmware | `hardci_flash_firmware`, `hardci_artifact_upload` | artifacts are validated (path, extension, format, SHA-256) before flashing |
-| Serial | `hardci_com_ports_list`, `hardci_com_session_start`, `hardci_com_session_stop`, `hardci_com_write`, `hardci_com_read` | named ports only, buffered background reader |
-| CAN | `hardci_can_buses_list`, `hardci_can_session_start`, `hardci_can_session_stop`, `hardci_can_send`, `hardci_can_read` | PEAK, SocketCAN, or a process bridge |
-| Test adapters | `hardci_adapters_list`, `hardci_adapter_session_start`, `hardci_adapter_session_stop`, `hardci_adapter_set_value`, `hardci_adapter_inject_fault`, `hardci_adapter_clear_fault`, `hardci_adapter_measure` | sensor/actuator/fault simulation via the [adapter bridge protocol](examples/adapters/README.md) |
-| Diagnostics | `hardci_get_last_report`, `hardci_classify_last_error` | structured error classification with likely causes |
-| Debug sessions | `hardci_debug_*` (start/stop/status, breakpoints, continue/halt, symbol info, memory dump) | typed GDB/MI sessions via the OpenOCD backend's gdbserver; symbol allowlist and dump-size limits from the `debug:` policy section |
+| Debugger | `debugger_info`, `probe_target`, `reset_target` | OpenOCD, pyOCD, or STM32CubeProgrammer CLI |
+| Firmware | `flash_firmware`, `artifact_upload` | artifacts are validated (path, extension, format, SHA-256) before flashing |
+| Serial | `com_ports_list`, `com_session_start`, `com_session_stop`, `com_write`, `com_read` | named ports only, buffered background reader |
+| CAN | `can_buses_list`, `can_session_start`, `can_session_stop`, `can_send`, `can_read` | PEAK, SocketCAN, or a process bridge |
+| Test adapters | `adapters_list`, `adapter_session_start`, `adapter_session_stop`, `adapter_set_value`, `adapter_inject_fault`, `adapter_clear_fault`, `adapter_measure` | sensor/actuator/fault simulation via the [adapter bridge protocol](examples/adapters/README.md) |
+| Diagnostics | `get_last_report`, `classify_last_error` | structured error classification with likely causes |
+| Debug sessions | `debug_*` (start/stop/status, breakpoints, continue/halt, symbol info, memory dump) | typed GDB/MI sessions via the OpenOCD backend's gdbserver; symbol allowlist and dump-size limits from the `debug:` policy section |
 
-A typical loop: build firmware → `hardci_flash_firmware` → `hardci_com_session_start` → stimulate via `hardci_com_write`/`hardci_can_send`/`hardci_adapter_set_value` → assert on `hardci_com_read`/`hardci_can_read`/`hardci_adapter_measure` → on failure, `hardci_classify_last_error`.
+A typical loop: build firmware → `flash_firmware` → `com_session_start` → stimulate via `com_write`/`can_send`/`adapter_set_value` → assert on `com_read`/`can_read`/`adapter_measure` → on failure, `classify_last_error`.
 
 If an agent session does not expose MCP tools yet, use `hardci doctor` to verify setup and restart the MCP client after config changes. For one-shot stateless actions, `hardci call` invokes the same policy-gated tools from the CLI:
 
 ```bash
-hardci call hardci_probe_target --config .hardci/config.yaml
-hardci call hardci_flash_firmware --config .hardci/config.yaml --args '{"image_path":"build/firmware.elf"}'
-hardci call hardci_reset_target --config .hardci/config.yaml --args '{"mode":"run"}'
+hardci call probe_target --config .hardci/config.yaml
+hardci call flash_firmware --config .hardci/config.yaml --args '{"image_path":"build/firmware.elf"}'
+hardci call reset_target --config .hardci/config.yaml --args '{"mode":"run"}'
 ```
 
 Session tools such as COM/CAN/debug sessions require MCP; `hardci call` intentionally rejects them. For a single configured serial stream, `hardci com-stdio --config .hardci/config.yaml --port dut_uart` provides a policy-gated plain-text relay.
@@ -187,11 +189,11 @@ Installing `hardci` registers a pytest plugin, so CI regression suites can drive
 
 ```python
 def test_open_sensor_diagnosis(hardci):
-    started = hardci.call("hardci_adapter_session_start", {"adapter_id": "ntc_sim"})
+    started = hardci.call("adapter_session_start", {"adapter_id": "ntc_sim"})
     assert started["ok"] is True
-    injected = hardci.call("hardci_adapter_inject_fault", {"adapter_id": "ntc_sim", "fault": "open"})
+    injected = hardci.call("adapter_inject_fault", {"adapter_id": "ntc_sim", "fault": "open"})
     assert injected["ok"] is True
-    # ...assert the firmware's reaction via hardci_com_read...
+    # ...assert the firmware's reaction via com_read...
 ```
 
 The `hardci` fixture loads `.hardci/config.yaml` relative to the pytest rootdir (override with `--hardci-config` or the `hardci_config` ini option). Tests are skipped when no configuration file exists, but an existing invalid configuration fails loudly — a config typo must not silently disable the hardware suite in CI. Adapter, COM, and CAN sessions opened during a test are stopped afterwards so stimulus state cannot leak between tests. See [examples/pytest/](examples/pytest/) for a full diagnosis-loop example, and [examples/nucleo-f446re_demo/](examples/nucleo-f446re_demo/) for the complete loop on real hardware: a bare-metal STM32 firmware that is built, flashed, reset, and asserted on via its UART boot banner.
@@ -202,7 +204,7 @@ The `hardci` fixture loads `.hardci/config.yaml` relative to the pytest rootdir 
 hardci init
 hardci doctor
 hardci com-ports
-hardci call hardci_probe_target --config .hardci/config.yaml
+hardci call probe_target --config .hardci/config.yaml
 hardci mcp-config --output .mcp.json
 hardci mcp-stdio --config .hardci/config.yaml
 hardci com-stdio --config .hardci/config.yaml --port dut_uart

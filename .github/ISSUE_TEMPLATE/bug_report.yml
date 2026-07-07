@@ -70,7 +70,7 @@ body:
       placeholder: |
         1. hardci init
         2. hardci doctor
-        3. Agent called hardci_probe_target
+        3. Agent called probe_target
     validations:
       required: true
   - type: textarea

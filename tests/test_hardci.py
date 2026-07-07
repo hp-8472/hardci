@@ -64,7 +64,7 @@ def test_mcp_config_refuses_overwrite_without_force(tmp_path: Path) -> None:
 def test_cli_call_invokes_stateless_mcp_tool(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     write_config(tmp_path, probe_id="STLINK123")
     monkeypatch.chdir(tmp_path)
-    result = call_cli_tool(None, "hardci_probe_target", "{}")
+    result = call_cli_tool(None, "probe_target", "{}")
     assert result["ok"] is True
     assert result["target_detected"] is True
     log_text = (tmp_path / result["log_path"]).read_text(encoding="utf-8")
@@ -72,9 +72,18 @@ def test_cli_call_invokes_stateless_mcp_tool(tmp_path: Path, monkeypatch: pytest
 
 
 def test_cli_call_rejects_session_tools() -> None:
-    result = call_cli_tool(None, "hardci_com_session_start", '{"port_id": "dut_uart"}')
+    result = call_cli_tool(None, "com_session_start", '{"port_id": "dut_uart"}')
     assert result["ok"] is False
     assert result["error_type"] == "stateful_tool_requires_mcp"
+
+
+def test_cli_call_rejects_prefixed_tool_name(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    write_config(tmp_path, probe_id="STLINK123")
+    monkeypatch.chdir(tmp_path)
+    result = call_cli_tool(None, "hardci_probe_target", "{}")
+    assert result["ok"] is False
+    assert result["tool"] == "hardci_probe_target"
+    assert result["error_type"] == "unknown_tool"
 
 
 def test_config_loads_defaults(tmp_path: Path) -> None:
@@ -103,7 +112,7 @@ def test_mcp_lists_configured_socketcan_buses_without_opening_hardware(tmp_path:
     )
     service = HardCIToolService(config)
     try:
-        listed = mcp_tool_call(service, "hardci_can_buses_list")
+        listed = mcp_tool_call(service, "can_buses_list")
     finally:
         service.close()
     assert listed["ok"] is True
@@ -115,7 +124,7 @@ def test_openocd_passes_configured_probe_id(tmp_path: Path) -> None:
     config = load_config(str(write_config(tmp_path, probe_id="STLINK123")), str(tmp_path))
     service = HardCIToolService(config)
     try:
-        probe = mcp_tool_call(service, "hardci_probe_target")
+        probe = mcp_tool_call(service, "probe_target")
     finally:
         service.close()
     assert probe["ok"] is True
@@ -130,9 +139,9 @@ def test_stlink_backend_probes_and_flashes_with_probe_id(tmp_path: Path) -> None
     config = load_config(str(write_config(tmp_path, debugger_type="stlink", probe_id="STLINK123")), str(tmp_path))
     service = HardCIToolService(config)
     try:
-        info = mcp_tool_call(service, "hardci_debugger_info")
-        probe = mcp_tool_call(service, "hardci_probe_target")
-        flash = mcp_tool_call(service, "hardci_flash_firmware", {"image_path": "build/firmware.elf"})
+        info = mcp_tool_call(service, "debugger_info")
+        probe = mcp_tool_call(service, "probe_target")
+        flash = mcp_tool_call(service, "flash_firmware", {"image_path": "build/firmware.elf"})
     finally:
         service.close()
     assert info["ok"] is True
@@ -157,10 +166,10 @@ def test_pyocd_backend_probes_flashes_and_resets_with_probe_and_target(tmp_path:
     )
     service = HardCIToolService(config)
     try:
-        info = mcp_tool_call(service, "hardci_debugger_info")
-        probe = mcp_tool_call(service, "hardci_probe_target")
-        flash = mcp_tool_call(service, "hardci_flash_firmware", {"image_path": "build/firmware.elf"})
-        reset = mcp_tool_call(service, "hardci_reset_target", {"mode": "halt"})
+        info = mcp_tool_call(service, "debugger_info")
+        probe = mcp_tool_call(service, "probe_target")
+        flash = mcp_tool_call(service, "flash_firmware", {"image_path": "build/firmware.elf"})
+        reset = mcp_tool_call(service, "reset_target", {"mode": "halt"})
     finally:
         service.close()
     assert info["ok"] is True
@@ -187,7 +196,7 @@ def test_pyocd_requires_flash_address_for_bin_artifacts(tmp_path: Path) -> None:
     config = load_config(str(write_config(tmp_path, debugger_type="pyocd")), str(tmp_path))
     service = HardCIToolService(config)
     try:
-        result = mcp_tool_call(service, "hardci_flash_firmware", {"image_path": "build/firmware.bin"})
+        result = mcp_tool_call(service, "flash_firmware", {"image_path": "build/firmware.bin"})
     finally:
         service.close()
     assert result["ok"] is False
@@ -202,7 +211,7 @@ def test_stlink_rejects_unconfirmed_successful_exit(tmp_path: Path) -> None:
     )
     service = HardCIToolService(config)
     try:
-        result = mcp_tool_call(service, "hardci_reset_target", {"mode": "run"})
+        result = mcp_tool_call(service, "reset_target", {"mode": "run"})
     finally:
         service.close()
     assert result["ok"] is False
@@ -217,7 +226,7 @@ def test_stlink_requires_flash_address_for_bin_artifacts(tmp_path: Path) -> None
     config = load_config(str(write_config(tmp_path, debugger_type="stlink")), str(tmp_path))
     service = HardCIToolService(config)
     try:
-        result = mcp_tool_call(service, "hardci_flash_firmware", {"image_path": "build/firmware.bin"})
+        result = mcp_tool_call(service, "flash_firmware", {"image_path": "build/firmware.bin"})
     finally:
         service.close()
     assert result["ok"] is False
@@ -273,7 +282,7 @@ def test_load_config_reports_non_utf8_file_as_config_error(tmp_path: Path) -> No
 
 def test_mcp_tool_registry_is_consistent(tmp_path: Path) -> None:
     assert [tool["name"] for tool in MCP_TOOLS] == MCP_TOOL_NAMES
-    assert all(name.startswith("hardci_") for name in MCP_TOOL_NAMES)
+    assert all(not name.startswith("hardci_") for name in MCP_TOOL_NAMES)
     config = load_config(str(write_config(tmp_path)), str(tmp_path))
     service = HardCIToolService(config)
     try:
@@ -282,6 +291,17 @@ def test_mcp_tool_registry_is_consistent(tmp_path: Path) -> None:
             assert result.get("error_type") != "unknown_tool", f"{name} is advertised but not dispatched"
     finally:
         service.close()
+
+
+def test_tool_service_rejects_prefixed_tool_names(tmp_path: Path) -> None:
+    config = load_config(str(write_config(tmp_path)), str(tmp_path))
+    service = HardCIToolService(config)
+    try:
+        result = service.call("hardci_probe_target", {})
+    finally:
+        service.close()
+    assert result["ok"] is False
+    assert result["error_type"] == "unknown_tool"
 
 
 def test_mcp_initialize_rejects_unsupported_protocol_version(tmp_path: Path) -> None:
@@ -366,31 +386,31 @@ def test_adapter_set_value_measure_and_fault_roundtrip(tmp_path: Path) -> None:
     config = load_config(str(write_config(tmp_path, adapters_yaml=NTC_ADAPTER_YAML)), str(tmp_path))
     service = HardCIToolService(config)
     try:
-        listed = mcp_tool_call(service, "hardci_adapters_list")
+        listed = mcp_tool_call(service, "adapters_list")
         assert listed["ok"] is True
         assert listed["adapters"]["ntc_sim"]["session_active"] is False
 
-        started = mcp_tool_call(service, "hardci_adapter_session_start", {"adapter_id": "ntc_sim"})
+        started = mcp_tool_call(service, "adapter_session_start", {"adapter_id": "ntc_sim"})
         assert started["ok"] is True
 
-        set_result = mcp_tool_call(service, "hardci_adapter_set_value", {"adapter_id": "ntc_sim", "channel": "temperature", "value": 85})
+        set_result = mcp_tool_call(service, "adapter_set_value", {"adapter_id": "ntc_sim", "channel": "temperature", "value": 85})
         assert set_result["ok"] is True
 
-        measured = mcp_tool_call(service, "hardci_adapter_measure", {"adapter_id": "ntc_sim", "channel": "temperature"})
+        measured = mcp_tool_call(service, "adapter_measure", {"adapter_id": "ntc_sim", "channel": "temperature"})
         assert measured["ok"] is True
         assert measured["value"] == 85.0
 
-        injected = mcp_tool_call(service, "hardci_adapter_inject_fault", {"adapter_id": "ntc_sim", "fault": "open"})
+        injected = mcp_tool_call(service, "adapter_inject_fault", {"adapter_id": "ntc_sim", "fault": "open"})
         assert injected["ok"] is True
-        open_resistance = mcp_tool_call(service, "hardci_adapter_measure", {"adapter_id": "ntc_sim", "channel": "resistance"})
+        open_resistance = mcp_tool_call(service, "adapter_measure", {"adapter_id": "ntc_sim", "channel": "resistance"})
         assert open_resistance["value"] >= 1e9
 
-        cleared = mcp_tool_call(service, "hardci_adapter_clear_fault", {"adapter_id": "ntc_sim"})
+        cleared = mcp_tool_call(service, "adapter_clear_fault", {"adapter_id": "ntc_sim"})
         assert cleared["ok"] is True
-        hot_resistance = mcp_tool_call(service, "hardci_adapter_measure", {"adapter_id": "ntc_sim", "channel": "resistance"})
+        hot_resistance = mcp_tool_call(service, "adapter_measure", {"adapter_id": "ntc_sim", "channel": "resistance"})
         assert 500 < hot_resistance["value"] < 5000  # 10k NTC (B=3950) at 85 degC
 
-        stopped = mcp_tool_call(service, "hardci_adapter_session_stop", {"adapter_id": "ntc_sim"})
+        stopped = mcp_tool_call(service, "adapter_session_stop", {"adapter_id": "ntc_sim"})
         assert stopped["ok"] is True
     finally:
         service.close()
@@ -400,18 +420,18 @@ def test_adapter_rejects_unconfigured_channel_fault_and_bad_value(tmp_path: Path
     config = load_config(str(write_config(tmp_path, adapters_yaml=NTC_ADAPTER_YAML)), str(tmp_path))
     service = HardCIToolService(config)
     try:
-        started = mcp_tool_call(service, "hardci_adapter_session_start", {"adapter_id": "ntc_sim"})
+        started = mcp_tool_call(service, "adapter_session_start", {"adapter_id": "ntc_sim"})
         assert started["ok"] is True
 
-        bad_channel = mcp_tool_call(service, "hardci_adapter_set_value", {"adapter_id": "ntc_sim", "channel": "voltage", "value": 3.3})
+        bad_channel = mcp_tool_call(service, "adapter_set_value", {"adapter_id": "ntc_sim", "channel": "voltage", "value": 3.3})
         assert bad_channel["ok"] is False
         assert bad_channel["error_type"] == "channel_not_configured"
 
-        bad_fault = mcp_tool_call(service, "hardci_adapter_inject_fault", {"adapter_id": "ntc_sim", "fault": "stuck"})
+        bad_fault = mcp_tool_call(service, "adapter_inject_fault", {"adapter_id": "ntc_sim", "fault": "stuck"})
         assert bad_fault["ok"] is False
         assert bad_fault["error_type"] == "fault_not_configured"
 
-        bad_value = mcp_tool_call(service, "hardci_adapter_set_value", {"adapter_id": "ntc_sim", "channel": "temperature", "value": True})
+        bad_value = mcp_tool_call(service, "adapter_set_value", {"adapter_id": "ntc_sim", "channel": "temperature", "value": True})
         assert bad_value["ok"] is False
         assert bad_value["error_type"] == "invalid_argument"
     finally:
@@ -422,7 +442,7 @@ def test_adapter_requires_active_session(tmp_path: Path) -> None:
     config = load_config(str(write_config(tmp_path, adapters_yaml=NTC_ADAPTER_YAML)), str(tmp_path))
     service = HardCIToolService(config)
     try:
-        result = mcp_tool_call(service, "hardci_adapter_set_value", {"adapter_id": "ntc_sim", "channel": "temperature", "value": 25})
+        result = mcp_tool_call(service, "adapter_set_value", {"adapter_id": "ntc_sim", "channel": "temperature", "value": 25})
     finally:
         service.close()
     assert result["ok"] is False
@@ -444,12 +464,12 @@ def test_adapter_write_permission_denied(tmp_path: Path) -> None:
     )
     service = HardCIToolService(config)
     try:
-        started = mcp_tool_call(service, "hardci_adapter_session_start", {"adapter_id": "ntc_sim"})
+        started = mcp_tool_call(service, "adapter_session_start", {"adapter_id": "ntc_sim"})
         assert started["ok"] is True
-        denied = mcp_tool_call(service, "hardci_adapter_set_value", {"adapter_id": "ntc_sim", "channel": "temperature", "value": 25})
+        denied = mcp_tool_call(service, "adapter_set_value", {"adapter_id": "ntc_sim", "channel": "temperature", "value": 25})
         assert denied["ok"] is False
         assert denied["error_type"] == "permission_denied"
-        measured = mcp_tool_call(service, "hardci_adapter_measure", {"adapter_id": "ntc_sim", "channel": "temperature"})
+        measured = mcp_tool_call(service, "adapter_measure", {"adapter_id": "ntc_sim", "channel": "temperature"})
         assert measured["ok"] is True
     finally:
         service.close()

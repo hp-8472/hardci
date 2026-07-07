@@ -44,13 +44,13 @@ def run_com_stdio(
         while not failed:
             chunk = next_stdin_chunk(stdin_chunks)
             if chunk:
-                written = service.write_bytes(port_id, chunk, "hardci_com_stdio_write")
+                written = service.write_bytes(port_id, chunk, "com_stdio_write")
                 if not written.get("ok"):
                     failed = True
                     write_error(error_stream, written)
             elif chunk == b"":
                 input_stream_closed = True
-            result = service.read_bytes(port_id, read_size, read_wait_timeout_s, "hardci_com_stdio_read")
+            result = service.read_bytes(port_id, read_size, read_wait_timeout_s, "com_stdio_read")
             if not result.get("ok"):
                 failed = True
                 write_error(error_stream, result)

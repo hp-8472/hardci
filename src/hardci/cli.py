@@ -85,31 +85,31 @@ SKILL_FILE = "SKILL.md"
 HARDCI_REGISTRATION_START = "<!-- HardCI skill registration start -->"
 HARDCI_REGISTRATION_END = "<!-- HardCI skill registration end -->"
 CLI_STATEFUL_TOOLS = {
-    "hardci_debug_start_session",
-    "hardci_debug_stop_session",
-    "hardci_debug_get_session_status",
-    "hardci_debug_set_breakpoint",
-    "hardci_debug_list_breakpoints",
-    "hardci_debug_clear_breakpoints",
-    "hardci_debug_continue",
-    "hardci_debug_halt",
-    "hardci_debug_get_stop_reason",
-    "hardci_debug_symbol_info",
-    "hardci_debug_dump_symbol_ihex",
-    "hardci_com_session_start",
-    "hardci_com_session_stop",
-    "hardci_com_write",
-    "hardci_com_read",
-    "hardci_can_session_start",
-    "hardci_can_session_stop",
-    "hardci_can_send",
-    "hardci_can_read",
-    "hardci_adapter_session_start",
-    "hardci_adapter_session_stop",
-    "hardci_adapter_set_value",
-    "hardci_adapter_inject_fault",
-    "hardci_adapter_clear_fault",
-    "hardci_adapter_measure",
+    "debug_start_session",
+    "debug_stop_session",
+    "debug_get_session_status",
+    "debug_set_breakpoint",
+    "debug_list_breakpoints",
+    "debug_clear_breakpoints",
+    "debug_continue",
+    "debug_halt",
+    "debug_get_stop_reason",
+    "debug_symbol_info",
+    "debug_dump_symbol_ihex",
+    "com_session_start",
+    "com_session_stop",
+    "com_write",
+    "com_read",
+    "can_session_start",
+    "can_session_stop",
+    "can_send",
+    "can_read",
+    "adapter_session_start",
+    "adapter_session_stop",
+    "adapter_set_value",
+    "adapter_inject_fault",
+    "adapter_clear_fault",
+    "adapter_measure",
 }
 
 
@@ -238,7 +238,7 @@ def init_config(config_path: str | None = None, force: bool = False) -> JsonObje
 
 def init_next_steps(available_com_ports: JsonObject) -> list[str]:
     next_steps = [
-        "Keep this .hardci/config.yaml with the firmware project; install HardCI once with pipx, uv tool, or a user-local venv.",
+        "Keep this .hardci/config.yaml local to the firmware checkout; install HardCI once with pipx, uv tool, or a user-local venv.",
         "Edit target.name and target.controller for your board.",
         "Set debugger.interface_cfg and debugger.target_cfg for your OpenOCD setup.",
         "If multiple debug probes are connected, set debugger.probe_id to the intended probe serial number.",
@@ -345,9 +345,9 @@ def parse_call_arguments(arguments_json: str | None) -> tuple[JsonObject | None,
     try:
         value = json.loads(text)
     except json.JSONDecodeError as error:
-        return None, {"ok": False, "tool": "hardci_call", "error_type": "invalid_argument", "summary": f"--args must be a JSON object: {error.msg}", "position": error.pos}
+        return None, {"ok": False, "tool": "call", "error_type": "invalid_argument", "summary": f"--args must be a JSON object: {error.msg}", "position": error.pos}
     if not isinstance(value, dict):
-        return None, {"ok": False, "tool": "hardci_call", "error_type": "invalid_argument", "summary": "--args must be a JSON object."}
+        return None, {"ok": False, "tool": "call", "error_type": "invalid_argument", "summary": "--args must be a JSON object."}
     return value, None
 
 

@@ -22,20 +22,20 @@ def read_uart_until(hardci, needle: str, timeout_s: float = 5.0) -> str:
     collected = ""
     deadline = time.monotonic() + timeout_s
     while needle not in collected and time.monotonic() < deadline:
-        feedback = hardci.call("hardci_com_read", {"port_id": UART_ID, "wait_timeout_s": 0.5})
+        feedback = hardci.call("com_read", {"port_id": UART_ID, "wait_timeout_s": 0.5})
         assert feedback["ok"] is True, feedback["summary"]
         collected += feedback["data"]["text"]
     return collected
 
 
 def test_firmware_boots_and_prints_banner(hardci) -> None:
-    flashed = hardci.call("hardci_flash_firmware", {"image_path": FIRMWARE_ELF})
+    flashed = hardci.call("flash_firmware", {"image_path": FIRMWARE_ELF})
     assert flashed["ok"] is True, flashed["summary"]
 
-    started = hardci.call("hardci_com_session_start", {"port_id": UART_ID, "clear_buffer": True})
+    started = hardci.call("com_session_start", {"port_id": UART_ID, "clear_buffer": True})
     assert started["ok"] is True, started["summary"]
 
-    reset = hardci.call("hardci_reset_target", {"mode": "run"})
+    reset = hardci.call("reset_target", {"mode": "run"})
     assert reset["ok"] is True, reset["summary"]
 
     output = read_uart_until(hardci, BOOT_BANNER)

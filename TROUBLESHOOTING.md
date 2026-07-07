@@ -47,7 +47,7 @@ If the published package is unavailable or the user explicitly wants the reposit
 
 If `hardci` is installed but not found, add `~/.local/bin` to `PATH` with `pipx ensurepath`, `uv tool update-shell`, or your shell startup file, then open a fresh shell. Never use `sudo pip` or `pip install --break-system-packages`.
 
-In `.mcp.json`, an absolute command path avoids the MCP client's `PATH` question, for example `"command": "/home/<user>/.local/bin/hardci"`. Runner forms such as `uvx hardci ...` or `pipx run hardci ...` can work, but a persistent command or absolute path is more predictable for MCP startup.
+In user-level MCP/client config, an absolute command path avoids the MCP client's `PATH` question, for example `"command": "/home/<user>/.local/bin/hardci"`. Do not commit absolute user paths to project `.mcp.json` files. Runner forms such as `uvx hardci ...` or `pipx run hardci ...` can work, but a persistent command or absolute user config path is more predictable for MCP startup.
 
 ## 1a. Python Install Method Choices
 
@@ -75,18 +75,18 @@ For `pipx`/`pip` certificate failures, configure pip with the organization's CA 
 
 ## 1c. MCP Tools Are Not Visible In The Agent
 
-Symptom: `.hardci/config.yaml` exists and `hardci doctor` works, but the agent session does not show any `hardci_*` MCP tools.
+Symptom: `.hardci/config.yaml` exists and `hardci doctor` works, but the agent session does not show any HardCI MCP tools.
 
 Likely cause: the MCP client loaded its config before the HardCI MCP entry was added, the client does not hot-load MCP config changes, or the MCP command path is not visible in the client's environment.
 
-Fix: run `hardci doctor` from the firmware project directory and verify the reported MCP command. For opencode, ensure `opencode.json` uses a `type: "local"` MCP entry with a command array, not `.mcp.json`'s `mcpServers` shape. Restart the agent client after changing MCP config.
+Fix: run `hardci doctor` from the firmware project directory and verify the reported MCP command. For opencode, ensure `opencode.json` uses a `type: "local"` MCP entry with a command array, not `.mcp.json`'s `mcpServers` shape. Prefer user-level opencode config for absolute `hardci` paths and project config only for portable entries. Restart the agent client after changing MCP config.
 
 For one-shot stateless hardware actions before restart, use the policy-gated CLI fallback:
 
 ```bash
-hardci call hardci_probe_target --config .hardci/config.yaml
-hardci call hardci_flash_firmware --config .hardci/config.yaml --args '{"image_path":"build/firmware.elf"}'
-hardci call hardci_reset_target --config .hardci/config.yaml --args '{"mode":"run"}'
+hardci call probe_target --config .hardci/config.yaml
+hardci call flash_firmware --config .hardci/config.yaml --args '{"image_path":"build/firmware.elf"}'
+hardci call reset_target --config .hardci/config.yaml --args '{"mode":"run"}'
 ```
 
 `hardci call` starts a fresh process for one tool call and intentionally rejects session-based tools with `stateful_tool_requires_mcp`. Use MCP for COM/CAN/debug sessions, or `hardci com-stdio --config .hardci/config.yaml --port <port_id>` for one configured serial stream when a plain-text relay is explicitly needed.
@@ -97,7 +97,7 @@ Symptom: `hardci doctor` returns one of these `error_type` values.
 
 Likely cause: `.hardci/config.yaml` is missing, the command runs from the wrong directory, the YAML is invalid or not UTF-8, or the file contains an unknown field or unsupported value.
 
-Fix: run `hardci init` from the firmware project directory, edit only project-specific fields, then run `hardci doctor` again. Use the structured fields such as `field`, `allowed_fields`, `allowed_values`, and `expected_type` to fix schema errors.
+Fix: run `hardci init` from the firmware project directory, edit only project-specific fields, then run `hardci doctor` again. Keep `.hardci/config.yaml` local by default because it can contain COM ports, CAN interfaces, debug-adapter IP addresses, probe serial numbers, and local artifact roots. Use the structured fields such as `field`, `allowed_fields`, `allowed_values`, and `expected_type` to fix schema errors.
 
 ## 3. `debugger_not_found`
 
@@ -125,7 +125,7 @@ Fix: reconnect with a data-capable USB cable, close other debugger sessions, che
 
 ## 6. `target_not_detected`
 
-Symptom: `hardci_probe_target` returns `ok: false` with `error_type: "target_not_detected"`.
+Symptom: `probe_target` returns `ok: false` with `error_type: "target_not_detected"`.
 
 Likely cause: target power is missing, SWD is disabled by firmware, jumpers are wrong, the board is held in reset, or the config is for the wrong target family.
 
@@ -141,7 +141,7 @@ Fix: stop and ask the human operator. Do not work around the policy with raw Ope
 
 ## 8. Artifact Not Found Or Fails Validation
 
-Symptom: `hardci_flash_firmware` returns `artifact_not_found` or `artifact_validation_failed` with fields such as `allowed_root: false`, `allowed_extension: false`, `elf_header: false`, `hex_parseable: false`, or `bin_size_plausible: false`.
+Symptom: `flash_firmware` returns `artifact_not_found` or `artifact_validation_failed` with fields such as `allowed_root: false`, `allowed_extension: false`, `elf_header: false`, `hex_parseable: false`, or `bin_size_plausible: false`.
 
 Likely cause: the firmware was not built, the path is wrong, the artifact is outside configured `artifacts.allowed_roots`, the extension is not allowed, or the file is not a valid firmware artifact.
 
@@ -179,4 +179,4 @@ Symptom: adapter tools return `adapter_not_configured`, `session_not_active`, `c
 
 Likely cause: the adapter is not configured under `adapters`, the session was not started, the channel or fault name is not in the config allowlist, or the bridge executable is missing or crashed.
 
-Fix: configure the adapter with explicit `channels` and `faults` allowlists, start with `hardci_adapter_session_start`, and use only allowlisted names. For `adapter_bridge_process_exited`/`adapter_bridge_timeout`, check the bridge executable path and test it standalone — the bundled simulator `examples/adapters/sim_ntc_adapter.py` is a working reference for the bridge protocol.
+Fix: configure the adapter with explicit `channels` and `faults` allowlists, start with `adapter_session_start`, and use only allowlisted names. For `adapter_bridge_process_exited`/`adapter_bridge_timeout`, check the bridge executable path and test it standalone — the bundled simulator `examples/adapters/sim_ntc_adapter.py` is a working reference for the bridge protocol.

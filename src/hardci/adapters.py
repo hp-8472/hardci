@@ -34,17 +34,17 @@ class AdapterService:
 
     def list_adapters(self) -> JsonObject:
         adapters = {adapter_id: self._adapter_status(adapter_config, self.sessions.get(adapter_id)) for adapter_id, adapter_config in self.config.adapters.items()}
-        return {"ok": True, "tool": "hardci_adapters_list", "adapters": adapters, "summary": f"{len(adapters)} configured test adapter(s)."}
+        return {"ok": True, "tool": "adapters_list", "adapters": adapters, "summary": f"{len(adapters)} configured test adapter(s)."}
 
     def session_start(self, adapter_id: str) -> JsonObject:
-        adapter = self._configured_adapter(adapter_id, "hardci_adapter_session_start")
+        adapter = self._configured_adapter(adapter_id, "adapter_session_start")
         if not adapter["ok"]:
             return self._write_report(adapter)
         if not self.config.permissions.allow_adapter_read and not self.config.permissions.allow_adapter_write:
-            return self._write_report(self._permission_denied("hardci_adapter_session_start", "Test adapter reading and writing are disabled by .hardci/config.yaml.", adapter_id))
+            return self._write_report(self._permission_denied("adapter_session_start", "Test adapter reading and writing are disabled by .hardci/config.yaml.", adapter_id))
         existing = self.sessions.get(adapter_id)
         if existing and self._session_is_active(existing):
-            return self._write_report({"ok": True, "tool": "hardci_adapter_session_start", "adapter_id": adapter_id, "already_active": True, "session": self._session_status(existing), "summary": "Test adapter session is already active."})
+            return self._write_report({"ok": True, "tool": "adapter_session_start", "adapter_id": adapter_id, "already_active": True, "session": self._session_status(existing), "summary": "Test adapter session is already active."})
         if existing:
             self.sessions.pop(adapter_id, None)
         opened = open_adapter_bridge(self.config, adapter_id, adapter["adapter_config"])
@@ -55,20 +55,20 @@ class AdapterService:
         session = AdapterSession(adapter_id, adapter["adapter_config"], bridge, log_path)
         self.sessions[adapter_id] = session
         append_jsonl(session.log_path, {"event": "start", "adapter_id": adapter_id, "executable": session.adapter_config.executable})
-        return self._write_report({"ok": True, "tool": "hardci_adapter_session_start", "adapter_id": adapter_id, "already_active": False, "adapter_result": public_backend_result(opened), "session": self._session_status(session), "summary": "Test adapter session started."})
+        return self._write_report({"ok": True, "tool": "adapter_session_start", "adapter_id": adapter_id, "already_active": False, "adapter_result": public_backend_result(opened), "session": self._session_status(session), "summary": "Test adapter session started."})
 
     def session_stop(self, adapter_id: str) -> JsonObject:
-        adapter = self._configured_adapter(adapter_id, "hardci_adapter_session_stop")
+        adapter = self._configured_adapter(adapter_id, "adapter_session_stop")
         if not adapter["ok"]:
             return self._write_report(adapter)
         session = self.sessions.pop(adapter_id, None)
         if session is None:
-            return self._write_report({"ok": True, "tool": "hardci_adapter_session_stop", "adapter_id": adapter_id, "was_active": False, "summary": "Test adapter session was not active."})
+            return self._write_report({"ok": True, "tool": "adapter_session_stop", "adapter_id": adapter_id, "was_active": False, "summary": "Test adapter session was not active."})
         self._stop_session(session, "requested")
-        return self._write_report({"ok": True, "tool": "hardci_adapter_session_stop", "adapter_id": adapter_id, "was_active": True, "session": self._session_status(session), "summary": "Test adapter session stopped."})
+        return self._write_report({"ok": True, "tool": "adapter_session_stop", "adapter_id": adapter_id, "was_active": True, "session": self._session_status(session), "summary": "Test adapter session stopped."})
 
     def set_value(self, adapter_id: str, payload: JsonObject) -> JsonObject:
-        tool = "hardci_adapter_set_value"
+        tool = "adapter_set_value"
         session_result = self._writable_session(adapter_id, tool)
         if not session_result["ok"]:
             return self._write_report(session_result)
@@ -88,7 +88,7 @@ class AdapterService:
         return self._bridge_action(session, tool, "set_value", params)
 
     def inject_fault(self, adapter_id: str, payload: JsonObject) -> JsonObject:
-        tool = "hardci_adapter_inject_fault"
+        tool = "adapter_inject_fault"
         session_result = self._writable_session(adapter_id, tool)
         if not session_result["ok"]:
             return self._write_report(session_result)
@@ -105,7 +105,7 @@ class AdapterService:
         return self._bridge_action(session, tool, "inject_fault", params)
 
     def clear_fault(self, adapter_id: str, payload: JsonObject) -> JsonObject:
-        tool = "hardci_adapter_clear_fault"
+        tool = "adapter_clear_fault"
         session_result = self._writable_session(adapter_id, tool)
         if not session_result["ok"]:
             return self._write_report(session_result)
@@ -124,7 +124,7 @@ class AdapterService:
         return self._bridge_action(session, tool, "clear_fault", params)
 
     def measure(self, adapter_id: str, payload: JsonObject) -> JsonObject:
-        tool = "hardci_adapter_measure"
+        tool = "adapter_measure"
         if not self.config.permissions.allow_adapter_read:
             return self._write_report(self._permission_denied(tool, "Test adapter reading is disabled by .hardci/config.yaml.", adapter_id))
         session_result = self._active_session(adapter_id, tool)
@@ -172,7 +172,7 @@ class AdapterService:
             return adapter
         session = self.sessions.get(adapter_id)
         if session is None or not self._session_is_active(session):
-            return {"ok": False, "tool": tool, "adapter_id": adapter_id, "error_type": "session_not_active", "summary": "Test adapter session is not active. Start it with hardci_adapter_session_start first."}
+            return {"ok": False, "tool": tool, "adapter_id": adapter_id, "error_type": "session_not_active", "summary": "Test adapter session is not active. Start it with adapter_session_start first."}
         return {"ok": True, "session": session}
 
     def _writable_session(self, adapter_id: str, tool: str) -> JsonObject:
@@ -231,15 +231,15 @@ class AdapterService:
 def open_adapter_bridge(config: HardCIConfig, adapter_id: str, adapter_config: AdapterConfig) -> JsonObject:
     executable = resolve_work_path(config, adapter_config.executable)
     if not Path(executable).is_file():
-        return {"ok": False, "tool": "hardci_adapter_session_start", "adapter_id": adapter_id, "error_type": "adapter_bridge_not_found", "summary": "Test adapter bridge executable could not be found.", "executable": adapter_config.executable}
+        return {"ok": False, "tool": "adapter_session_start", "adapter_id": adapter_id, "error_type": "adapter_bridge_not_found", "summary": "Test adapter bridge executable could not be found.", "executable": adapter_config.executable}
     command = [*invocation(executable), *adapter_config.args]
     try:
         child = subprocess.Popen(command, cwd=config.work_dir, text=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     except OSError as error:
-        return {"ok": False, "tool": "hardci_adapter_session_start", "adapter_id": adapter_id, "error_type": "adapter_bridge_process_start_failed", "summary": "Test adapter bridge process could not be started.", "backend_error": str(error)}
+        return {"ok": False, "tool": "adapter_session_start", "adapter_id": adapter_id, "error_type": "adapter_bridge_process_start_failed", "summary": "Test adapter bridge process could not be started.", "backend_error": str(error)}
     session = AdapterBridgeSession(child)
     opened = session.request("open", {"channels": adapter_config.channels, "faults": adapter_config.faults}, adapter_config.timeout_s)
     if not opened.get("ok"):
         session.close()
-        return {"tool": "hardci_adapter_session_start", "adapter_id": adapter_id, "command": command_for_log(command), **opened}
-    return {"ok": True, "tool": "hardci_adapter_session_start", "adapter_id": adapter_id, "command": command_for_log(command), "backend": opened.get("backend", "process"), "session": session, "summary": "Test adapter bridge opened."}
+        return {"tool": "adapter_session_start", "adapter_id": adapter_id, "command": command_for_log(command), **opened}
+    return {"ok": True, "tool": "adapter_session_start", "adapter_id": adapter_id, "command": command_for_log(command), "backend": opened.get("backend", "process"), "session": session, "summary": "Test adapter bridge opened."}

@@ -16,11 +16,11 @@ PLUGIN_ARGS = ("-p", "no:hardci", "-p", "hardci.pytest_plugin")
 
 ADAPTER_LOOP_TEST = """
 def test_adapter_loop(hardci):
-    started = hardci.call("hardci_adapter_session_start", {"adapter_id": "ntc_sim"})
+    started = hardci.call("adapter_session_start", {"adapter_id": "ntc_sim"})
     assert started["ok"] is True
-    set_result = hardci.call("hardci_adapter_set_value", {"adapter_id": "ntc_sim", "channel": "temperature", "value": 85})
+    set_result = hardci.call("adapter_set_value", {"adapter_id": "ntc_sim", "channel": "temperature", "value": 85})
     assert set_result["ok"] is True
-    measured = hardci.call("hardci_adapter_measure", {"adapter_id": "ntc_sim", "channel": "temperature"})
+    measured = hardci.call("adapter_measure", {"adapter_id": "ntc_sim", "channel": "temperature"})
     assert measured["value"] == 85.0
 """
 
@@ -77,12 +77,12 @@ def test_adapter_state_does_not_leak_between_tests(pytester: pytest.Pytester) ->
     write_config(pytester.path, adapters_yaml=NTC_ADAPTER_YAML)
     pytester.makepyfile("""
 def test_a_injects_fault_without_cleanup(hardci):
-    assert hardci.call("hardci_adapter_session_start", {"adapter_id": "ntc_sim"})["ok"] is True
-    assert hardci.call("hardci_adapter_inject_fault", {"adapter_id": "ntc_sim", "fault": "open"})["ok"] is True
+    assert hardci.call("adapter_session_start", {"adapter_id": "ntc_sim"})["ok"] is True
+    assert hardci.call("adapter_inject_fault", {"adapter_id": "ntc_sim", "fault": "open"})["ok"] is True
 
 def test_b_sees_fresh_adapter_state(hardci):
-    assert hardci.call("hardci_adapter_session_start", {"adapter_id": "ntc_sim"})["ok"] is True
-    measured = hardci.call("hardci_adapter_measure", {"adapter_id": "ntc_sim", "channel": "resistance"})
+    assert hardci.call("adapter_session_start", {"adapter_id": "ntc_sim"})["ok"] is True
+    measured = hardci.call("adapter_measure", {"adapter_id": "ntc_sim", "channel": "resistance"})
     assert 9000 < measured["value"] < 11000  # 10k NTC at default 25 degC, no fault
 """)
     result = pytester.runpytest(*PLUGIN_ARGS)

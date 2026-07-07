@@ -14,6 +14,7 @@ from hardci.comstdio import run_com_stdio
 from hardci.config import DEFAULT_CONFIG_PATH, ConfigError, config_schema_text, display_path, load_config
 from hardci.debugger import create_debugger_backend
 from hardci.stdio import run_stdio_server
+from hardci.tools import HardCIToolService
 from hardci.types import JsonObject
 
 DEFAULT_CONFIG_TEMPLATE = """target:
@@ -25,6 +26,7 @@ debugger:
   executable: null
   probe_id: null
   target_type: null
+  interface: "SWD"
   interface_cfg: "interface/stlink.cfg"
   target_cfg: "target/stm32f4x.cfg"
   timeout_s: 60
@@ -82,6 +84,33 @@ SKILL_NAME = "hardci-config-setup"
 SKILL_FILE = "SKILL.md"
 HARDCI_REGISTRATION_START = "<!-- HardCI skill registration start -->"
 HARDCI_REGISTRATION_END = "<!-- HardCI skill registration end -->"
+CLI_STATEFUL_TOOLS = {
+    "hardci_debug_start_session",
+    "hardci_debug_stop_session",
+    "hardci_debug_get_session_status",
+    "hardci_debug_set_breakpoint",
+    "hardci_debug_list_breakpoints",
+    "hardci_debug_clear_breakpoints",
+    "hardci_debug_continue",
+    "hardci_debug_halt",
+    "hardci_debug_get_stop_reason",
+    "hardci_debug_symbol_info",
+    "hardci_debug_dump_symbol_ihex",
+    "hardci_com_session_start",
+    "hardci_com_session_stop",
+    "hardci_com_write",
+    "hardci_com_read",
+    "hardci_can_session_start",
+    "hardci_can_session_stop",
+    "hardci_can_send",
+    "hardci_can_read",
+    "hardci_adapter_session_start",
+    "hardci_adapter_session_stop",
+    "hardci_adapter_set_value",
+    "hardci_adapter_inject_fault",
+    "hardci_adapter_clear_fault",
+    "hardci_adapter_measure",
+}
 
 
 @dataclass(frozen=True)
@@ -145,6 +174,11 @@ def build_parser() -> argparse.ArgumentParser:
     com_stdio_parser.add_argument("--read-wait-timeout-s", type=float, default=0.05)
     com_stdio_parser.add_argument("--eof-idle-timeout-s", type=float, default=0.5)
 
+    call_parser = subparsers.add_parser("call", help="call one stateless HardCI MCP tool from the CLI")
+    call_parser.add_argument("tool")
+    call_parser.add_argument("--config", default=None)
+    call_parser.add_argument("--args", default="{}", help="JSON object passed as tool arguments")
+
     schema_parser = subparsers.add_parser("schema", help="print or write bundled config schema")
     schema_parser.add_argument("--output", default=None)
     schema_parser.add_argument("--force", action="store_true")
@@ -174,6 +208,8 @@ def dispatch(args: argparse.Namespace) -> JsonObject | int | None:
     if args.command == "com-stdio":
         config = load_config(args.config)
         return run_com_stdio(config, args.port, max_read_bytes=args.max_read_bytes, read_wait_timeout_s=args.read_wait_timeout_s, eof_idle_timeout_s=args.eof_idle_timeout_s)
+    if args.command == "call":
+        return call_cli_tool(args.config, args.tool, args.args)
     if args.command == "schema":
         return schema(args.output, args.force)
     if args.command == "mcp-config":
@@ -202,7 +238,7 @@ def init_config(config_path: str | None = None, force: bool = False) -> JsonObje
 
 def init_next_steps(available_com_ports: JsonObject) -> list[str]:
     next_steps = [
-        "Keep this .hardci/config.yaml with the firmware project; install HardCI once with pipx or python -m pip --user.",
+        "Keep this .hardci/config.yaml with the firmware project; install HardCI once with pipx, uv tool, or a user-local venv.",
         "Edit target.name and target.controller for your board.",
         "Set debugger.interface_cfg and debugger.target_cfg for your OpenOCD setup.",
         "If multiple debug probes are connected, set debugger.probe_id to the intended probe serial number.",
@@ -283,6 +319,36 @@ def doctor(config_path: str | None = None) -> JsonObject:
         "adapters": {adapter_id: {"executable": adapter.executable, "channels": adapter.channels, "faults": adapter.faults} for adapter_id, adapter in config.adapters.items()},
         "debugger": debugger_info,
     }
+
+
+def call_cli_tool(config_path: str | None, tool_name: str, arguments_json: str | None = None) -> JsonObject:
+    arguments, error = parse_call_arguments(arguments_json)
+    if error is not None:
+        return error
+    if tool_name in CLI_STATEFUL_TOOLS:
+        return {
+            "ok": False,
+            "tool": tool_name,
+            "error_type": "stateful_tool_requires_mcp",
+            "summary": "This HardCI tool requires a persistent MCP session. Restart the MCP-enabled agent session, or use hardci com-stdio for one configured serial stream.",
+        }
+    config = load_config(config_path)
+    service = HardCIToolService(config)
+    try:
+        return service.call(tool_name, arguments or {})
+    finally:
+        service.close()
+
+
+def parse_call_arguments(arguments_json: str | None) -> tuple[JsonObject | None, JsonObject | None]:
+    text = (arguments_json or "{}").strip() or "{}"
+    try:
+        value = json.loads(text)
+    except json.JSONDecodeError as error:
+        return None, {"ok": False, "tool": "hardci_call", "error_type": "invalid_argument", "summary": f"--args must be a JSON object: {error.msg}", "position": error.pos}
+    if not isinstance(value, dict):
+        return None, {"ok": False, "tool": "hardci_call", "error_type": "invalid_argument", "summary": "--args must be a JSON object."}
+    return value, None
 
 
 def install_skill(agent: str | None = None, target: str | None = None, force: bool = False) -> JsonObject:

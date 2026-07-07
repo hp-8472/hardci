@@ -28,29 +28,53 @@ Every hardware action is validated against the project policy, executed with tim
 
 ## Install
 
-The easiest path: tell your AI agent
+Install HardCI once for your user account, then configure each firmware project with its own `.hardci/` policy directory.
+
+Recommended for a persistent user-local CLI:
+
+```bash
+pipx install hardci
+hardci --version
+```
+
+If you already use `uv`, this is equivalent:
+
+```bash
+uv tool install hardci
+hardci --version
+```
+
+If neither `pipx` nor `uv` is available, a plain Python virtual environment works too:
+
+```bash
+python3 -m venv ~/.local/share/hardci/venv
+~/.local/share/hardci/venv/bin/python -m pip install --upgrade pip
+~/.local/share/hardci/venv/bin/python -m pip install hardci
+mkdir -p ~/.local/bin
+ln -sf ~/.local/share/hardci/venv/bin/hardci ~/.local/bin/hardci
+~/.local/bin/hardci --version
+```
+
+Use the repository package source only when you explicitly need the latest GitHub version instead of the published package:
+
+```bash
+pipx install git+https://github.com/hp-8472/hardci
+# or: uv tool install git+https://github.com/hp-8472/hardci
+```
+
+Project setup, run from your firmware project directory:
+
+```bash
+hardci init
+# edit .hardci/config.yaml for your target, debugger, artifact roots, and approved IO
+hardci doctor
+```
+
+If you want an AI agent to do the project setup, open the firmware project in the agent and ask:
 
 > Install HardCI from https://github.com/hp-8472/hardci and set it up for this project.
 
-Agents follow [AI_AGENT_QUICKSTART.md](AI_AGENT_QUICKSTART.md) — everything installs user-local, **no admin rights required, ever**.
-
-By hand, without installing anything (no `PATH` changes; needs [uv](https://docs.astral.sh/uv/) or pipx):
-
-```bash
-uvx hardci --version                                                # from PyPI
-uvx --from git+https://github.com/hp-8472/hardci hardci --version   # from the repository
-```
-
-Persistent user-local install (recommended for the MCP server entry):
-
-```bash
-uv tool install hardci      # or: pipx install hardci
-hardci init
-hardci doctor
-hardci mcp-config --output .mcp.json
-```
-
-For direct PEAK/SocketCAN access install the CAN extra: `uv tool install 'hardci[can]'`. See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) when something does not start.
+Agents follow [AGENTS.md](AGENTS.md) and [AI_AGENT_QUICKSTART.md](AI_AGENT_QUICKSTART.md). See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for corporate TLS, `PATH`, OpenOCD, COM port, and CAN setup issues. For direct PEAK/SocketCAN access, install the CAN extra with the same installer, for example `pipx install 'hardci[can]'` or `uv tool install 'hardci[can]'`.
 
 ## MCP Entry
 
@@ -67,6 +91,8 @@ Project-local `.mcp.json`:
 }
 ```
 
+If `.mcp.json` already exists, merge the `hardci` entry and keep the existing MCP servers. If your MCP client does not inherit your shell `PATH`, use the absolute path to the user-local executable, for example `~/.local/bin/hardci`.
+
 ## Configuration
 
 `hardci init` writes a starter `.hardci/config.yaml`. The file is the policy — it names the target, the debugger backend, allowed artifact roots, named serial ports and CAN buses, and per-action permissions:
@@ -78,6 +104,7 @@ target:
 
 debugger:
   type: "openocd"            # or "pyocd" (most Cortex-M targets), or "stlink" (STM32CubeProgrammer CLI)
+  interface: "SWD"
   interface_cfg: "interface/stlink.cfg"
   target_cfg: "target/stm32f4x.cfg"
   timeout_s: 60
@@ -128,6 +155,16 @@ Export the full JSON schema with `hardci schema --output hardci-config.schema.js
 
 A typical loop: build firmware → `hardci_flash_firmware` → `hardci_com_session_start` → stimulate via `hardci_com_write`/`hardci_can_send`/`hardci_adapter_set_value` → assert on `hardci_com_read`/`hardci_can_read`/`hardci_adapter_measure` → on failure, `hardci_classify_last_error`.
 
+If an agent session does not expose MCP tools yet, use `hardci doctor` to verify setup and restart the MCP client after config changes. For one-shot stateless actions, `hardci call` invokes the same policy-gated tools from the CLI:
+
+```bash
+hardci call hardci_probe_target --config .hardci/config.yaml
+hardci call hardci_flash_firmware --config .hardci/config.yaml --args '{"image_path":"build/firmware.elf"}'
+hardci call hardci_reset_target --config .hardci/config.yaml --args '{"mode":"run"}'
+```
+
+Session tools such as COM/CAN/debug sessions require MCP; `hardci call` intentionally rejects them. For a single configured serial stream, `hardci com-stdio --config .hardci/config.yaml --port dut_uart` provides a policy-gated plain-text relay.
+
 ## Test Adapters
 
 Real-world firmware bugs show up under electrical conditions that standard lab tools cannot reproduce on demand: an open or shorted sensor, a drifting NTC, a missing load, a bouncing contact. The `adapters:` section connects HardCI to test adapters that simulate exactly these states — physical adapter hardware or pure-software simulators, both speaking the same [JSON bridge protocol](examples/adapters/README.md).
@@ -165,6 +202,7 @@ The `hardci` fixture loads `.hardci/config.yaml` relative to the pytest rootdir 
 hardci init
 hardci doctor
 hardci com-ports
+hardci call hardci_probe_target --config .hardci/config.yaml
 hardci mcp-config --output .mcp.json
 hardci mcp-stdio --config .hardci/config.yaml
 hardci com-stdio --config .hardci/config.yaml --port dut_uart

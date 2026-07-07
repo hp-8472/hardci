@@ -4,86 +4,117 @@ Use HardCI as the local MCP server for embedded firmware development and embedde
 
 This file is for agents. Humans should start with `README.md` and use `TROUBLESHOOTING.md` for operator-facing diagnostics.
 
-If you were given only the HardCI repository URL and asked to set it up: run the fast path below, install the HardCI skill into your own skill directory, configure the firmware project, then return to the firmware project. Do not clone, checkout, or vendor the HardCI source tree into the firmware project for normal setup.
+If you were given only the HardCI repository URL and asked to set it up, do not clone or vendor the repository into the firmware project. Make the CLI available user-locally, install the agent skill, configure the firmware project, validate with `hardci doctor`, then return to the firmware task.
 
 ## Ground Rules
 
-- Never use `sudo` or any administrator privileges for the HardCI installation. Every step below works user-local.
-- Never use `pip install --break-system-packages`, and do not install into the system Python (PEP 668 environments will refuse, and they are right).
-- If the board, debugger, COM port, or artifact path cannot be inferred, ask one concise question instead of guessing.
+- Never use `sudo` or administrator privileges for HardCI installation.
+- Never use `pip install --break-system-packages` or write into the system Python.
+- Prefer an existing user-local `hardci` command, `pipx`, `uv`, or a dedicated user-local venv.
+- If board, debugger, COM port, CAN bus, or artifact path cannot be inferred, ask one concise question instead of guessing.
+- Preserve existing `.hardci/config.yaml`, `.mcp.json`, and `opencode.json` entries unless the user explicitly asks to replace them.
 
-## Reference Setup
+## Make The CLI Available
 
-Prefer the supported first path unless the firmware project or user clearly says otherwise:
+Use the first working option. Keep the resolved command in mind as `HARDCI`; use an absolute path in MCP configs if the command may not be on `PATH`.
 
-- STM32 Nucleo-F446RE (a complete demo lives in `examples/nucleo-f446re_demo/`).
-- ST-Link with OpenOCD (`interface/stlink.cfg`, `target/stm32f4x.cfg`).
-- Python 3.10 or newer.
-- Firmware artifacts under `build/`.
-
-## Start HardCI
-
-Fast path, in order — stop at the first step that works:
-
-1. If `hardci --version` works, do not reinstall.
-2. If `uv` is available, run HardCI without installing anything (no admin rights, no `PATH` changes):
+1. Existing install:
 
 ```bash
-uvx hardci --version
+hardci --version
 ```
 
-3. If the PyPI package lookup fails, use the repository as the package source (this is a package source only — it does not create a checkout):
+2. Persistent isolated install with `pipx`:
 
 ```bash
-uvx --from git+https://github.com/hp-8472/hardci hardci --version
+pipx install hardci
+hardci --version
 ```
 
-4. If `uv` is missing but `pipx` is available, the equivalents are `pipx run hardci --version` and `pipx run --spec git+https://github.com/hp-8472/hardci hardci --version`.
-5. If neither `uv` nor `pipx` is available, install `uv` user-locally (no admin rights; installs to `~/.local/bin`):
+3. Persistent isolated install with `uv` when `uv` is already available:
 
 ```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh   # Windows: powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+uv tool install hardci
+hardci --version
 ```
 
-then rerun step 2. A missing runner is a remediable setup prerequisite, not a reason to refuse the HardCI setup.
-
-For the MCP server entry it is usually better to install the `hardci` command persistently (still user-local, still no admin rights):
+4. Plain Python fallback without `pipx` or `uv`:
 
 ```bash
-uv tool install hardci        # or from the repository: uv tool install git+https://github.com/hp-8472/hardci
+python3 -m venv ~/.local/share/hardci/venv
+~/.local/share/hardci/venv/bin/python -m pip install --upgrade pip
+~/.local/share/hardci/venv/bin/python -m pip install hardci
+mkdir -p ~/.local/bin
+ln -sf ~/.local/share/hardci/venv/bin/hardci ~/.local/bin/hardci
+~/.local/bin/hardci --version
 ```
 
-`pipx install hardci` is the equivalent. Both place `hardci` into `~/.local/bin`; if that is not on `PATH`, fix it with `uv tool update-shell` or `pipx ensurepath` — never with admin rights.
+5. Use the GitHub repository as package source only when the PyPI package is unavailable or the user explicitly asked for the repository version:
+
+```bash
+pipx install git+https://github.com/hp-8472/hardci
+# or: uv tool install git+https://github.com/hp-8472/hardci
+```
+
+`uv` is optional. It is useful for fast package execution and isolated tool installs, but it is not a HardCI requirement.
+
+Avoid `python -m pip install --user hardci` as the default route. It can work on unmanaged Python installations, but PEP 668 distributions often reject it, and it is less isolated than `pipx` or a dedicated venv.
+
+## Corporate TLS
+
+If `uv` fails with `invalid peer certificate: UnknownIssuer`, retry with system certificates:
+
+```bash
+UV_SYSTEM_CERTS=1 uvx hardci --version
+uv --system-certs tool install hardci
+```
+
+If `pipx` or `pip` fails with certificate errors, report the certificate issue and ask the user which corporate CA/certificate configuration should be used. Do not disable TLS verification silently.
 
 ## Install Agent Skill
 
-Agent-driven HardCI installation includes installing the bundled `hardci-config-setup` skill into the active agent's user-level skill directory after the CLI is available:
+After the CLI is available, install the bundled `hardci-config-setup` skill for the active agent:
 
 ```bash
-hardci skill-install --agent <agent>          # or: uvx hardci skill-install --agent <agent>
+hardci skill-install --agent <agent>
 ```
 
-Supported agent names and aliases: `opencode`/`open-code`, `claude-code`/`claude`, `codex`/`codex-cli`/`openai-codex`. For other skill-capable agents use `--agent <name> --target <path>` with that agent's documented user-level skill directory. The CLI package is authoritative: if the installed skill's front-matter version differs from `hardci --version`, rerun `skill-install`.
+Supported agent names and aliases: `opencode`/`open-code`, `claude-code`/`claude`, `codex`/`codex-cli`/`openai-codex`. For other skill-capable agents use `--agent <name> --target <path>` with that agent's documented user-level skill directory.
+
+For opencode, tell the user to restart opencode after skill or MCP config changes.
 
 ## Configure Each Project
 
-In every firmware project that should use HardCI:
+Run these commands from the firmware project directory, not from the HardCI source repository:
 
 ```bash
-hardci init                 # writes the starter .hardci/config.yaml
-# edit .hardci/config.yaml: target, debugger configs, allowed artifact roots,
-# named com_ports / can_buses / adapters — keep the safety policy restrictive
-hardci doctor               # validates config and checks the debugger
-hardci mcp-config --output .mcp.json
+hardci init
+# edit .hardci/config.yaml for the target, debugger, artifact roots, and approved IO
+hardci doctor
 ```
 
-Keep `.hardci/` with the project: it defines that project's hardware policy, reports, logs, and allowed artifact locations. Do not reinstall HardCI inside every project.
+If `.hardci/config.yaml` already exists, do not overwrite it. Edit only the fields required for the current setup.
+
+Reference first path unless the project or user clearly says otherwise:
+
+- STM32 Nucleo-F446RE.
+- ST-Link with OpenOCD.
+- `interface/stlink.cfg` and `target/stm32f4x.cfg`.
+- Python 3.10 or newer.
+- Firmware artifacts under `build/`.
+- Firmware artifact formats `.elf`, `.hex`, and `.bin`.
+
+Do not add `.srec` or other extensions just because a build directory contains them. Add only formats the user wants to flash and the selected debugger backend supports.
+
+Use `hardci com-ports` to discover serial devices. Configure a COM port only when it is clearly the DUT UART or the user confirms it. If multiple probes or serial devices are present, set `debugger.probe_id` and ask when selection is ambiguous.
 
 Expected healthy `hardci doctor` result: `ok: true`, `summary: "HardCI configuration loaded and debugger checked."`, and a nested debugger result with `ok: true`.
 
 ## Configure MCP
 
-`.mcp.json` is only the MCP launch entry. The default written by `hardci mcp-config` assumes `hardci` is on `PATH`:
+`.mcp.json` is only the MCP launch entry. If it does not exist, `hardci mcp-config --output .mcp.json` can create it.
+
+If `.mcp.json` already exists, merge this server entry instead of overwriting the file:
 
 ```json
 {
@@ -96,9 +127,44 @@ Expected healthy `hardci doctor` result: `ok: true`, `summary: "HardCI configura
 }
 ```
 
-If `hardci` is not on `PATH`, use the runner form instead: `"command": "uvx", "args": ["hardci", "mcp-stdio", "--config", ".hardci/config.yaml"]`.
+If the MCP client may not inherit `PATH`, use the absolute user-local executable path, for example `/home/<user>/.local/bin/hardci`.
 
-`mcp-stdio` is project-scoped and JSON-RPC only. COM tool calls pass `port_id`, CAN tool calls pass `bus_id`, and test-adapter tool calls pass `adapter_id` as tool arguments. For a continuous plain-text serial channel use a separate `hardci com-stdio --config .hardci/config.yaml --port <port_id>` process — never mix plain text into `mcp-stdio`.
+For opencode, use `opencode.json`'s native `mcp` shape instead of `.mcp.json`'s `mcpServers` shape:
+
+```json
+{
+  "mcp": {
+    "hardci": {
+      "type": "local",
+      "command": ["/home/<user>/.local/bin/hardci", "mcp-stdio", "--config", ".hardci/config.yaml"],
+      "cwd": ".",
+      "enabled": true,
+      "timeout": 120000
+    }
+  }
+}
+```
+
+`mcp-stdio` is project-scoped and JSON-RPC only. Do not add `--port` to `mcp-stdio`. For a continuous plain-text serial channel use a separate `hardci com-stdio --config .hardci/config.yaml --port <port_id>` process only when the user explicitly wants it.
+
+## If MCP Tools Are Not Visible
+
+If the running agent session does not expose `hardci_*` MCP tools, do not fall back to raw OpenOCD, direct serial devices, direct CAN adapters, or direct test adapters.
+
+1. Run `hardci doctor` from the firmware project directory.
+2. Confirm `.hardci/config.yaml` exists and the MCP entry points to `hardci mcp-stdio --config .hardci/config.yaml`.
+3. If the MCP entry or opencode config was just created or changed, tell the user to restart the agent client. Existing sessions usually do not hot-load new MCP servers.
+4. For one-shot stateless hardware actions before restart, use `hardci call` so the same project policy still gates the operation.
+
+Examples:
+
+```bash
+hardci call hardci_probe_target --config .hardci/config.yaml
+hardci call hardci_flash_firmware --config .hardci/config.yaml --args '{"image_path":"build/firmware.elf"}'
+hardci call hardci_reset_target --config .hardci/config.yaml --args '{"mode":"run"}'
+```
+
+`hardci call` starts a fresh process for a single tool call. It intentionally rejects session-based tools such as `hardci_com_session_start`, `hardci_can_session_start`, and `hardci_debug_start_session` with `stateful_tool_requires_mcp`. Use MCP for those, or `hardci com-stdio --config .hardci/config.yaml --port <port_id>` for one configured serial stream when the user explicitly needs a plain-text serial relay.
 
 ## Use The Tools
 
@@ -107,16 +173,14 @@ Use `tools/list` to discover available MCP tools, then follow this loop:
 1. Build firmware.
 2. Check debugger availability with `hardci_debugger_info` if setup is unclear.
 3. Probe with `hardci_probe_target`.
-4. Flash with `hardci_flash_firmware` using `image_path` (usually `build/firmware.elf`), or first call `hardci_artifact_upload` and flash the returned `artifact_id`.
-5. For serial feedback: `hardci_com_session_start`, stimulate with `hardci_com_write`, read with `hardci_com_read`, stop with `hardci_com_session_stop`.
-6. For CAN: `hardci_can_session_start`, `hardci_can_send`, `hardci_can_read`, `hardci_can_session_stop`.
-7. For simulated sensors, loads, and fault states: `hardci_adapter_session_start`, `hardci_adapter_set_value`, `hardci_adapter_inject_fault`, `hardci_adapter_measure`, `hardci_adapter_clear_fault`, `hardci_adapter_session_stop`.
+4. Flash with `hardci_flash_firmware` using `image_path`, or call `hardci_artifact_upload` first and flash the returned `artifact_id`.
+5. For serial feedback, use `hardci_com_session_start`, `hardci_com_write`, `hardci_com_read`, and `hardci_com_session_stop`.
+6. For CAN, use `hardci_can_session_start`, `hardci_can_send`, `hardci_can_read`, and `hardci_can_session_stop`.
+7. For simulated sensors, loads, and faults, use the configured adapter tools.
 8. Read the tool result and `hardci_get_last_report`; diagnose failures with `hardci_classify_last_error`.
-
-Healthy probe and flash signals: `target_detected: true`, `success_confirmed: true`, `verify: true`, `reset_after_flash: true`, plus `report_path` and `log_path` for auditability.
 
 Do not use raw OpenOCD commands, arbitrary COM-port shell tools, direct CAN adapter tools, or direct test-adapter access when a HardCI MCP tool is available. Treat `permission_denied` as authoritative and stop.
 
 ## pytest Suites
 
-For CI regression suites the installed package registers a pytest plugin: the `hardci` fixture drives the same tools via `hardci.call(name, arguments)`. Tests skip when no `.hardci/config.yaml` exists and fail loudly when the config is invalid. See `examples/pytest/` and `examples/nucleo-f446re_demo/tests/`.
+For CI regression suites, the installed package registers a pytest plugin. The `hardci` fixture drives the same tools via `hardci.call(name, arguments)`. Tests skip when no `.hardci/config.yaml` exists and fail loudly when the config is invalid. See `examples/pytest/` and `examples/nucleo-f446re_demo/tests/`.

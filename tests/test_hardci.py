@@ -12,7 +12,7 @@ from conftest import FAKE_STLINK_UNCONFIRMED, SIM_NTC_ADAPTER, write_config
 
 from hardci.artifacts import ArtifactManager
 from hardci.can import CanFrame, ProcessCanAdapterSession, open_python_can_adapter
-from hardci.cli import init_config, install_skill, mcp_config, schema
+from hardci.cli import call_cli_tool, init_config, install_skill, mcp_config, schema
 from hardci.comports import ComPortService
 from hardci.config import ConfigError, load_config
 from hardci.mcp import MCP_PROTOCOL_VERSION, MCP_TOOL_NAMES, MCP_TOOLS, handle_mcp_message
@@ -59,6 +59,22 @@ def test_mcp_config_refuses_overwrite_without_force(tmp_path: Path) -> None:
     assert result["error_type"] == "mcp_config_exists"
     result_forced = mcp_config(str(output_path), force=True)
     assert result_forced["ok"] is True
+
+
+def test_cli_call_invokes_stateless_mcp_tool(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    write_config(tmp_path, probe_id="STLINK123")
+    monkeypatch.chdir(tmp_path)
+    result = call_cli_tool(None, "hardci_probe_target", "{}")
+    assert result["ok"] is True
+    assert result["target_detected"] is True
+    log_text = (tmp_path / result["log_path"]).read_text(encoding="utf-8")
+    assert "adapter serial STLINK123" in log_text
+
+
+def test_cli_call_rejects_session_tools() -> None:
+    result = call_cli_tool(None, "hardci_com_session_start", '{"port_id": "dut_uart"}')
+    assert result["ok"] is False
+    assert result["error_type"] == "stateful_tool_requires_mcp"
 
 
 def test_config_loads_defaults(tmp_path: Path) -> None:

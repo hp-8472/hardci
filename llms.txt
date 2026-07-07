@@ -2,14 +2,15 @@
 
 HardCI is a local MCP stdio server that gives AI agents safe, policy-gated access to real embedded hardware: flashing, serial, CAN, and test-adapter stimuli/fault injection.
 
-Run without installing (no admin rights, no PATH changes):
+Use an existing `hardci` command when available. Persistent user-local install options:
 
 ```bash
-uvx hardci --version
-uvx --from git+https://github.com/hp-8472/hardci hardci --version
+pipx install hardci
+uv tool install hardci
+python3 -m venv ~/.local/share/hardci/venv
 ```
 
-Persistent user-local install: `uv tool install hardci` or `pipx install hardci`. Never sudo, never --break-system-packages. Requires Python 3.10+.
+`uv` is optional, not required. Never sudo, never --break-system-packages. Avoid `pip install --user` as the default because PEP 668 systems may reject it. Requires Python 3.10+.
 
 Bootstrap each firmware project from the project directory:
 
@@ -26,6 +27,16 @@ MCP stdio command:
 ```text
 hardci mcp-stdio --config .hardci/config.yaml
 ```
+
+If `hardci_*` MCP tools are not visible in the current agent session, run `hardci doctor`, verify MCP config, and tell the user to restart the agent after config changes. For one-shot stateless actions, use the policy-gated CLI fallback:
+
+```bash
+hardci call hardci_probe_target --config .hardci/config.yaml
+hardci call hardci_flash_firmware --config .hardci/config.yaml --args '{"image_path":"build/firmware.elf"}'
+hardci call hardci_reset_target --config .hardci/config.yaml --args '{"mode":"run"}'
+```
+
+`hardci call` rejects session tools such as COM/CAN/debug sessions; use MCP for those, or `hardci com-stdio --config .hardci/config.yaml --port <port_id>` for one configured serial stream.
 
 Use MCP tools for hardware actions:
 
@@ -51,4 +62,4 @@ pytest: installing hardci registers a plugin; the `hardci` fixture drives the sa
 
 Safety: do not request raw OpenOCD commands, do not open host serial/CAN/adapter devices directly, do not flash outside allowed artifact roots. Treat `permission_denied` as authoritative.
 
-Agent setup guide: AI_AGENT_QUICKSTART.md. Human docs: README.md, TROUBLESHOOTING.md.
+Agent setup guide: AGENTS.md and AI_AGENT_QUICKSTART.md. Human docs: README.md, TROUBLESHOOTING.md.

@@ -74,7 +74,9 @@ hardci doctor
 
 If you want an AI agent to do the project setup, open the firmware project in the agent and ask:
 
-> Install HardCI from https://github.com/hp-8472/hardci and set it up for this project.
+```text
+Install HardCI from https://github.com/hp-8472/hardci and set it up for this project.
+```
 
 Agents follow [AGENTS.md](AGENTS.md) and [AI_AGENT_QUICKSTART.md](AI_AGENT_QUICKSTART.md). See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for corporate TLS, `PATH`, OpenOCD, COM port, and CAN setup issues. For direct PEAK/SocketCAN access, install the CAN extra with the same installer, for example `pipx install 'hardci[can]'` or `uv tool install 'hardci[can]'`.
 

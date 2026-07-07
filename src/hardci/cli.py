@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shutil
 import sys
 from dataclasses import dataclass
 from importlib import resources
@@ -187,6 +188,13 @@ def build_parser() -> argparse.ArgumentParser:
     mcp_config_parser.add_argument("--output", default=None)
     mcp_config_parser.add_argument("--force", action="store_true")
 
+    mcp_install_parser = subparsers.add_parser("mcp-install", help="install/update a HardCI MCP entry in an agent/client config")
+    mcp_install_parser.add_argument("--agent", default="opencode")
+    mcp_install_parser.add_argument("--target", default=None)
+    mcp_install_parser.add_argument("--config", default=DEFAULT_CONFIG_PATH)
+    mcp_install_parser.add_argument("--command", dest="hardci_command", default=None)
+    mcp_install_parser.add_argument("--force", action="store_true")
+
     skill_parser = subparsers.add_parser("skill-install", help="install/update the HardCI agent setup skill")
     skill_parser.add_argument("--agent", default="opencode")
     skill_parser.add_argument("--target", default=None)
@@ -214,6 +222,8 @@ def dispatch(args: argparse.Namespace) -> JsonObject | int | None:
         return schema(args.output, args.force)
     if args.command == "mcp-config":
         return mcp_config(args.output, args.force)
+    if args.command == "mcp-install":
+        return install_mcp(args.agent, args.target, args.config, args.hardci_command, args.force)
     if args.command == "skill-install":
         return install_skill(args.agent, args.target, args.force)
     return {"ok": False, "error_type": "unknown_command", "summary": f"unknown command: {args.command}"}
@@ -292,6 +302,169 @@ def mcp_config(output: str | None = None, force: bool = False) -> JsonObject:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(text, encoding="utf-8")
     return {"ok": True, "summary": "HardCI MCP configuration written.", "path": output}
+
+
+def install_mcp(agent: str | None = None, target: str | None = None, config_path: str = DEFAULT_CONFIG_PATH, command: str | None = None, force: bool = False) -> JsonObject:
+    requested_agent = agent or "opencode"
+    normalized = normalize_agent(requested_agent)
+    if normalized in {"opencode", "open-code"}:
+        return install_opencode_mcp(requested_agent, target, config_path, command, force)
+    if normalized in {"claude-code", "claude"}:
+        return install_claude_code_mcp(requested_agent, target, config_path, command, force)
+    if normalized in {"codex", "codex-cli", "openai-codex"}:
+        return install_codex_mcp(requested_agent, target, config_path, command, force)
+    if normalized in {"mcp-json", "mcp", "generic"}:
+        return install_mcp_json(requested_agent, target, config_path, command, force)
+    return {"ok": False, "error_type": "unsupported_agent", "summary": "HardCI does not know this agent's MCP config format. Use --target with --agent mcp-json for generic .mcp.json output.", "agent": normalized, "allowed_agents": ["opencode", "claude-code", "codex", "mcp-json"]}
+
+
+def install_opencode_mcp(requested_agent: str, target: str | None, config_path: str, command: str | None, force: bool) -> JsonObject:
+    target_path = Path(target or Path.home() / ".config" / "opencode" / "opencode.json")
+    config = read_json_object(target_path, force)
+    if not config["ok"]:
+        return config
+    content = config["content"]
+    if "$schema" not in content:
+        content["$schema"] = "https://opencode.ai/config.json"
+    mcp = content.setdefault("mcp", {})
+    if not isinstance(mcp, dict):
+        return {"ok": False, "error_type": "config_invalid", "summary": "opencode config field 'mcp' must be an object.", "path": str(target_path)}
+    entry = opencode_mcp_entry(command or default_hardci_command(), config_path)
+    previous = mcp.get("hardci")
+    mcp["hardci"] = entry
+    write_json_object(target_path, content)
+    return {"ok": True, "summary": "HardCI opencode MCP entry installed.", "agent": "opencode", "requested_agent": requested_agent, "path": str(target_path), "installed": previous is None, "updated": previous != entry, "entry": entry}
+
+
+def install_mcp_json(requested_agent: str, target: str | None, config_path: str, command: str | None, force: bool) -> JsonObject:
+    target_path = Path(target or ".mcp.json")
+    config = read_json_object(target_path, force)
+    if not config["ok"]:
+        return config
+    content = config["content"]
+    servers = content.setdefault("mcpServers", {})
+    if not isinstance(servers, dict):
+        return {"ok": False, "error_type": "config_invalid", "summary": ".mcp.json field 'mcpServers' must be an object.", "path": str(target_path)}
+    entry = mcp_json_entry(command or "hardci", config_path)
+    previous = servers.get("hardci")
+    servers["hardci"] = entry
+    write_json_object(target_path, content)
+    return {"ok": True, "summary": "HardCI .mcp.json entry installed.", "agent": "mcp-json", "requested_agent": requested_agent, "path": str(target_path), "installed": previous is None, "updated": previous != entry, "entry": entry}
+
+
+def install_claude_code_mcp(requested_agent: str, target: str | None, config_path: str, command: str | None, force: bool) -> JsonObject:
+    target_path = Path(target or Path.home() / ".claude.json")
+    config = read_json_object(target_path, force)
+    if not config["ok"]:
+        return config
+    content = config["content"]
+    projects = content.setdefault("projects", {})
+    if not isinstance(projects, dict):
+        return {"ok": False, "error_type": "config_invalid", "summary": "Claude Code config field 'projects' must be an object.", "path": str(target_path)}
+    project_key = str(Path.cwd().resolve())
+    project = projects.setdefault(project_key, {})
+    if not isinstance(project, dict):
+        return {"ok": False, "error_type": "config_invalid", "summary": "Claude Code project entry must be an object.", "path": str(target_path), "project": project_key}
+    servers = project.setdefault("mcpServers", {})
+    if not isinstance(servers, dict):
+        return {"ok": False, "error_type": "config_invalid", "summary": "Claude Code project field 'mcpServers' must be an object.", "path": str(target_path), "project": project_key}
+    entry = claude_code_mcp_entry(command or default_hardci_command(), config_path)
+    previous = servers.get("hardci")
+    servers["hardci"] = entry
+    write_json_object(target_path, content)
+    return {"ok": True, "summary": "HardCI Claude Code MCP entry installed.", "agent": "claude-code", "requested_agent": requested_agent, "path": str(target_path), "project": project_key, "installed": previous is None, "updated": previous != entry, "entry": entry}
+
+
+def install_codex_mcp(requested_agent: str, target: str | None, config_path: str, command: str | None, force: bool) -> JsonObject:
+    target_path = Path(target or Path.home() / ".codex" / "config.toml")
+    entry = codex_mcp_entry(command or default_hardci_command(), config_path)
+    existing = target_path.read_text(encoding="utf-8") if target_path.exists() else ""
+    next_text = upsert_toml_table(existing, "mcp_servers.hardci", codex_mcp_toml(entry))
+    if target_path.exists() and next_text == existing and not force:
+        return {"ok": True, "summary": "HardCI Codex MCP entry is already installed.", "agent": "codex", "requested_agent": requested_agent, "path": str(target_path), "installed": False, "updated": False, "entry": entry}
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    target_path.write_text(next_text, encoding="utf-8")
+    return {"ok": True, "summary": "HardCI Codex MCP entry installed.", "agent": "codex", "requested_agent": requested_agent, "path": str(target_path), "installed": "[mcp_servers.hardci]" not in existing, "updated": True, "entry": entry}
+
+
+def opencode_mcp_entry(command: str, config_path: str) -> JsonObject:
+    return {"type": "local", "command": [command, "mcp-stdio", "--config", config_path], "cwd": ".", "enabled": True, "timeout": 120000}
+
+
+def mcp_json_entry(command: str, config_path: str) -> JsonObject:
+    return {"command": command, "args": ["mcp-stdio", "--config", config_path]}
+
+
+def claude_code_mcp_entry(command: str, config_path: str) -> JsonObject:
+    resolved_config = config_path if Path(config_path).is_absolute() else f"${{CLAUDE_PROJECT_DIR:-.}}/{config_path}"
+    return {"type": "stdio", "command": command, "args": ["mcp-stdio", "--config", resolved_config]}
+
+
+def codex_mcp_entry(command: str, config_path: str) -> JsonObject:
+    return {"command": command, "args": ["mcp-stdio", "--config", config_path], "enabled": True}
+
+
+def codex_mcp_toml(entry: JsonObject) -> str:
+    args = entry.get("args", [])
+    return "\n".join(
+        [
+            '[mcp_servers.hardci]',
+            f'command = {toml_string(str(entry["command"]))}',
+            f'args = {toml_string_array([str(item) for item in args])}',
+            f'enabled = {str(bool(entry.get("enabled", True))).lower()}',
+        ]
+    ) + "\n"
+
+
+def toml_string(value: str) -> str:
+    return json.dumps(value)
+
+
+def toml_string_array(values: list[str]) -> str:
+    return "[" + ", ".join(toml_string(value) for value in values) + "]"
+
+
+def upsert_toml_table(existing: str, table_name: str, replacement: str) -> str:
+    header = f"[{table_name}]"
+    lines = existing.splitlines(keepends=True)
+    start = next((index for index, line in enumerate(lines) if line.strip() == header), None)
+    replacement_lines = replacement.splitlines(keepends=True)
+    if start is None:
+        prefix = existing.rstrip()
+        separator = "\n\n" if prefix else ""
+        return f"{prefix}{separator}{replacement}"
+    end = start + 1
+    while end < len(lines):
+        stripped = lines[end].strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            break
+        end += 1
+    return "".join([*lines[:start], *replacement_lines, *lines[end:]])
+
+
+def default_hardci_command() -> str:
+    executable = Path(sys.argv[0])
+    if executable.name.startswith("hardci") and executable.exists():
+        return str(executable.resolve())
+    found = shutil.which("hardci")
+    return found or "hardci"
+
+
+def read_json_object(path: Path, force: bool = False) -> JsonObject:
+    if not path.exists() or force:
+        return {"ok": True, "content": {}}
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        return {"ok": False, "error_type": "config_invalid", "summary": f"JSON config is invalid: {error.msg}", "path": str(path), "position": error.pos}
+    if not isinstance(value, dict):
+        return {"ok": False, "error_type": "config_invalid", "summary": "JSON config must contain an object at the top level.", "path": str(path)}
+    return {"ok": True, "content": value}
+
+
+def write_json_object(path: Path, content: JsonObject) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(content, indent=2) + "\n", encoding="utf-8")
 
 
 def doctor(config_path: str | None = None) -> JsonObject:

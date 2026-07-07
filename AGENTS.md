@@ -33,12 +33,14 @@ follow this model:
 
 1. Distinguish the firmware project from the HardCI source repository.
 2. Make the `hardci` CLI available user-locally.
-3. Install or update the agent setup skill with `hardci skill-install --agent <agent>`.
+3. Use the installed Python package to generate or update agent files: `hardci skill-install --agent <agent>` and, when supported, `hardci mcp-install --agent <agent>`.
 4. Return to the firmware project directory.
 5. Create or update the local `.hardci/config.yaml` without overwriting existing policy unless explicitly asked.
 6. Validate with `hardci doctor`.
-7. Add or merge the MCP entry in the user's MCP/client config when possible; use project `.mcp.json` only when the client needs project discovery.
+7. Use `hardci mcp-install --agent mcp-json --target .mcp.json` only when the MCP client needs project-local discovery.
 8. Use HardCI MCP tools for hardware actions.
+
+Do not hand-write HardCI skill or MCP client files during normal installation. Install the Python package first, then run the package's generator commands.
 
 Preferred user-local install methods for agents:
 
@@ -63,6 +65,8 @@ hardci doctor
 If `.hardci/config.yaml` already exists, preserve policy decisions and edit only project-specific values. Do not run `hardci init --force` unless the user explicitly asks for a reset. Do not stage or commit `.hardci/config.yaml` unless the user explicitly asks for a shared sanitized policy file.
 
 If `.mcp.json` already exists, merge a `hardci` server entry and preserve existing servers. Do not overwrite existing MCP configuration with `hardci mcp-config --force` unless explicitly asked. Do not commit absolute user paths such as `/home/.../.local/bin/hardci` to project files; those belong in the user's MCP/client config.
+
+Generate user/client MCP entries with `hardci mcp-install --agent <agent>` when the agent is supported. Use `hardci mcp-install --agent mcp-json --target .mcp.json` for generic project discovery files.
 
 For opencode, `opencode.json` uses its own `mcp` shape with a `type: "local"` entry and a command array. Do not paste `.mcp.json`'s `mcpServers` shape into `opencode.json`.
 

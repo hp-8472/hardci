@@ -19,6 +19,15 @@ HardCI setup is split by audience:
 
 Install or locate the CLI user-locally. `uv` is optional; use `pipx install hardci`, `uv tool install hardci`, or a dedicated venv under `~/.local/share/hardci/venv`. Never use `sudo pip` or `pip install --break-system-packages`.
 
+After installing the Python package, generate agent files through the package:
+
+```bash
+hardci skill-install --agent <agent>
+hardci mcp-install --agent <agent>
+```
+
+Do not hand-write HardCI MCP or skill files during normal installation. Use `hardci mcp-install --agent mcp-json --target .mcp.json` only when the client needs project-local discovery.
+
 Initialize from the firmware project directory:
 
 ```bash

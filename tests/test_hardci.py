@@ -12,7 +12,7 @@ from conftest import FAKE_STLINK_UNCONFIRMED, SIM_NTC_ADAPTER, write_config
 
 from hardci.artifacts import ArtifactManager
 from hardci.can import CanFrame, ProcessCanAdapterSession, open_python_can_adapter
-from hardci.cli import call_cli_tool, init_config, install_skill, mcp_config, schema
+from hardci.cli import call_cli_tool, init_config, install_mcp, install_skill, mcp_config, schema
 from hardci.comports import ComPortService
 from hardci.config import ConfigError, load_config
 from hardci.mcp import MCP_PROTOCOL_VERSION, MCP_TOOL_NAMES, MCP_TOOLS, handle_mcp_message
@@ -59,6 +59,64 @@ def test_mcp_config_refuses_overwrite_without_force(tmp_path: Path) -> None:
     assert result["error_type"] == "mcp_config_exists"
     result_forced = mcp_config(str(output_path), force=True)
     assert result_forced["ok"] is True
+
+
+def test_mcp_install_writes_opencode_config(tmp_path: Path) -> None:
+    target = tmp_path / "opencode.json"
+    result = install_mcp("opencode", str(target), ".hardci/config.yaml", "/tmp/hardci", False)
+    assert result["ok"] is True
+    content = json.loads(target.read_text(encoding="utf-8"))
+    assert content["$schema"] == "https://opencode.ai/config.json"
+    assert content["mcp"]["hardci"]["type"] == "local"
+    assert content["mcp"]["hardci"]["command"] == ["/tmp/hardci", "mcp-stdio", "--config", ".hardci/config.yaml"]
+
+
+def test_mcp_install_merges_opencode_config(tmp_path: Path) -> None:
+    target = tmp_path / "opencode.json"
+    target.write_text('{"theme":"dark","mcp":{"other":{"type":"local","command":["tool"]}}}\n', encoding="utf-8")
+    result = install_mcp("open-code", str(target), ".hardci/config.yaml", "/tmp/hardci", False)
+    assert result["ok"] is True
+    content = json.loads(target.read_text(encoding="utf-8"))
+    assert content["theme"] == "dark"
+    assert content["mcp"]["other"]["command"] == ["tool"]
+    assert content["mcp"]["hardci"]["command"][0] == "/tmp/hardci"
+
+
+def test_mcp_install_writes_generic_mcp_json(tmp_path: Path) -> None:
+    target = tmp_path / ".mcp.json"
+    result = install_mcp("mcp-json", str(target), ".hardci/config.yaml", "hardci", False)
+    assert result["ok"] is True
+    content = json.loads(target.read_text(encoding="utf-8"))
+    assert content["mcpServers"]["hardci"]["command"] == "hardci"
+    assert content["mcpServers"]["hardci"]["args"] == ["mcp-stdio", "--config", ".hardci/config.yaml"]
+
+
+def test_mcp_install_writes_claude_code_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    target = tmp_path / ".claude.json"
+    project = tmp_path / "firmware"
+    project.mkdir()
+    monkeypatch.chdir(project)
+    result = install_mcp("claude-code", str(target), ".hardci/config.yaml", "/tmp/hardci", False)
+    assert result["ok"] is True
+    content = json.loads(target.read_text(encoding="utf-8"))
+    entry = content["projects"][str(project.resolve())]["mcpServers"]["hardci"]
+    assert entry["type"] == "stdio"
+    assert entry["command"] == "/tmp/hardci"
+    assert entry["args"] == ["mcp-stdio", "--config", "${CLAUDE_PROJECT_DIR:-.}/.hardci/config.yaml"]
+
+
+def test_mcp_install_writes_codex_config(tmp_path: Path) -> None:
+    target = tmp_path / "config.toml"
+    target.write_text('model = "gpt-5.5"\n\n[mcp_servers.other]\ncommand = "tool"\n', encoding="utf-8")
+    result = install_mcp("codex", str(target), ".hardci/config.yaml", "/tmp/hardci", False)
+    assert result["ok"] is True
+    content = target.read_text(encoding="utf-8")
+    assert 'model = "gpt-5.5"' in content
+    assert '[mcp_servers.other]' in content
+    assert '[mcp_servers.hardci]' in content
+    assert 'command = "/tmp/hardci"' in content
+    assert 'args = ["mcp-stdio", "--config", ".hardci/config.yaml"]' in content
+    assert 'enabled = true' in content
 
 
 def test_cli_call_invokes_stateless_mcp_tool(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

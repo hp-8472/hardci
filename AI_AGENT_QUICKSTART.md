@@ -4,7 +4,7 @@ Use HardCI as the local MCP server for embedded firmware development and embedde
 
 This file is for agents. Humans should start with `README.md` and use `TROUBLESHOOTING.md` for operator-facing diagnostics.
 
-If you were given only the HardCI repository URL and asked to set it up, do not clone or vendor the repository into the firmware project. Make the CLI available user-locally, install the agent skill, configure the firmware project, validate with `hardci doctor`, then return to the firmware task.
+If you were given only the HardCI repository URL and asked to set it up, do not clone or vendor the repository into the firmware project. Install the Python package user-locally, use that installed package to generate skill and MCP files, configure the firmware project, validate with `hardci doctor`, then return to the firmware task.
 
 ## Ground Rules
 
@@ -71,15 +71,22 @@ uv --system-certs tool install hardci
 
 If `pipx` or `pip` fails with certificate errors, report the certificate issue and ask the user which corporate CA/certificate configuration should be used. Do not disable TLS verification silently.
 
-## Install Agent Skill
+## Generate Agent Files
 
-After the CLI is available, install the bundled `hardci-config-setup` skill for the active agent:
+After the CLI is available, generate or update agent files through the HardCI package. Do not hand-write these files during normal installation.
 
 ```bash
 hardci skill-install --agent <agent>
+hardci mcp-install --agent <agent>
 ```
 
-Supported agent names and aliases: `opencode`/`open-code`, `claude-code`/`claude`, `codex`/`codex-cli`/`openai-codex`. For other skill-capable agents use `--agent <name> --target <path>` with that agent's documented user-level skill directory.
+Supported skill agent names and aliases: `opencode`/`open-code`, `claude-code`/`claude`, `codex`/`codex-cli`/`openai-codex`. For other skill-capable agents use `--agent <name> --target <path>` with that agent's documented user-level skill directory.
+
+Supported MCP install targets: `opencode`, `claude-code`, `codex`, and `mcp-json` for a generic `.mcp.json` file when the client needs project discovery:
+
+```bash
+hardci mcp-install --agent mcp-json --target .mcp.json
+```
 
 For opencode, tell the user to restart opencode after skill or MCP config changes.
 
@@ -112,7 +119,7 @@ Expected healthy `hardci doctor` result: `ok: true`, `summary: "HardCI configura
 
 ## Configure MCP
 
-MCP config is launcher config. Prefer the user's MCP/client configuration for platform-dependent values such as absolute executable paths. `.mcp.json` is only needed when the MCP client discovers servers from the project. If it does not exist and the client needs it, `hardci mcp-config --output .mcp.json` can create a portable entry.
+MCP config is launcher config. Prefer the user's MCP/client configuration for platform-dependent values such as absolute executable paths. `.mcp.json` is only needed when the MCP client discovers servers from the project. Generate MCP entries with `hardci mcp-install`; use `hardci mcp-config --output .mcp.json` only for the legacy portable project file.
 
 If `.mcp.json` already exists, merge this server entry instead of overwriting the file:
 

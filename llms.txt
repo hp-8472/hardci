@@ -15,10 +15,13 @@ python3 -m venv ~/.local/share/hardci/venv
 Bootstrap each firmware project from the project directory:
 
 ```bash
+hardci skill-install --agent opencode
+hardci mcp-install --agent opencode
 hardci init
 hardci doctor
-hardci mcp-config --output .mcp.json
 ```
+
+Use HardCI's generator commands for skill and MCP files after installing the Python package. Do not hand-write those files during normal setup. Choose the active client: MCP installers are available for `opencode`, `claude-code`, `codex`, and generic `mcp-json` output.
 
 Each firmware checkout keeps its own local `.hardci/config.yaml` — the policy for that target, debugger, permissions, artifact roots, com_ports, can_buses, debug-adapter IPs, and adapters. Do not commit it by default; COM ports and adapter IPs still belong there because different projects can use different hardware.
 

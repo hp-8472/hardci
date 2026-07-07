@@ -49,6 +49,15 @@ If `hardci` is installed but not found, add `~/.local/bin` to `PATH` with `pipx 
 
 In user-level MCP/client config, an absolute command path avoids the MCP client's `PATH` question, for example `"command": "/home/<user>/.local/bin/hardci"`. Do not commit absolute user paths to project `.mcp.json` files. Runner forms such as `uvx hardci ...` or `pipx run hardci ...` can work, but a persistent command or absolute user config path is more predictable for MCP startup.
 
+Generate or update MCP entries with the installed package instead of hand-editing normal setup files. Choose the active client, for example:
+
+```bash
+hardci mcp-install --agent opencode
+hardci mcp-install --agent mcp-json --target .mcp.json
+```
+
+Client-specific installers are available for `opencode`, `claude-code`, and `codex`.
+
 ## 1a. Python Install Method Choices
 
 `uv` is not required by HardCI. It is one convenient user-local Python package runner. Good alternatives are:

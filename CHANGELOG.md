@@ -6,6 +6,10 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 
 ## [Unreleased]
 
+### Added
+
+- `hardci mcp-install` now generates MCP client entries for opencode, Claude Code, Codex, and generic `.mcp.json` files.
+
 ### Changed
 
 - MCP tools now use short names such as `probe_target` and `flash_firmware`.

@@ -6,6 +6,15 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 
 ## [Unreleased]
 
+### Added
+
+- Debug sessions now classify abnormal target stops: unexpected breakpoints return `unexpected_breakpoint`, Cortex-M exception/fault contexts return `target_exception` with frame, signal, and suggested next actions, and session status picks up asynchronous stop records.
+
+### Changed
+
+- Firmware flashing no longer resets the target by default. Pass `reset_after_flash: true` to `hardci_flash_firmware` to request the previous post-flash reset behavior.
+- Removed the separate `permissions.allow_reset` policy field; reset remains a typed debugger action instead of a separately gated permission class.
+
 ## [0.2.0] - 2026-07-06
 
 ### Added

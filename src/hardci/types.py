@@ -92,7 +92,6 @@ class ValidationConfig:
 class PermissionsConfig:
     allow_probe: bool
     allow_flash: bool
-    allow_reset: bool
     allow_com_read: bool
     allow_com_write: bool
     allow_can_read: bool

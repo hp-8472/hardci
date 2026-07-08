@@ -42,10 +42,13 @@ class HardCIToolService:
         artifact_id = payload.get("artifact_id")
         if bool(image_path) == bool(artifact_id):
             return tool_error("hardci_flash_firmware", "invalid_argument", "Provide exactly one of image_path or artifact_id.")
+        reset_after_flash = payload.get("reset_after_flash", False)
+        if not isinstance(reset_after_flash, bool):
+            return tool_error("hardci_flash_firmware", "invalid_argument", "reset_after_flash must be a boolean.")
         validation = self.artifacts.validate_local_path(str(image_path)) if image_path else self.artifacts.resolve_artifact_id(str(artifact_id))
         if not validation["ok"]:
             return validation
-        return self.backend.flash_firmware(validation["artifact"])
+        return self.backend.flash_firmware(validation["artifact"], reset_after_flash)
 
     def artifact_upload(self, payload: JsonObject | None = None) -> JsonObject:
         return self.artifacts.upload(payload)

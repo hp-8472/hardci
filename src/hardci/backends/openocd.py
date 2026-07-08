@@ -104,7 +104,7 @@ class OpenOCDBackend:
             result["summary"] = "Target detected through OpenOCD."
         return self._write_action_report(result)
 
-    def flash_firmware(self, artifact: JsonObject) -> JsonObject:
+    def flash_firmware(self, artifact: JsonObject, reset_after_flash: bool = False) -> JsonObject:
         if not self.config.permissions.allow_flash:
             return self._permission_denied("hardci_flash_firmware", "Flashing is disabled by .hardci/config.yaml.")
         if self.config.permissions.allow_raw_debugger_commands:
@@ -114,20 +114,19 @@ class OpenOCDBackend:
 
         command_path = escape_tcl_double_quoted_word(openocd_path_for_command(str(artifact["resolved_path"])))
         marker = OPENOCD_SUCCESS_MARKERS["hardci_flash_firmware"]
-        result = self._run_openocd("hardci_flash_firmware", f'program "{command_path}" verify reset; echo "{marker}"; shutdown', marker)
+        reset_command = " reset" if reset_after_flash else ""
+        result = self._run_openocd("hardci_flash_firmware", f'program "{command_path}" verify{reset_command}; echo "{marker}"; shutdown', marker)
         result["artifact"] = {"source": artifact.get("source", "path"), "path": artifact.get("path"), "sha256": artifact.get("sha256")}
         result["verify"] = True
-        result["reset_after_flash"] = True
+        result["reset_after_flash"] = reset_after_flash
         if result.get("ok"):
-            result["summary"] = "Firmware flashed, verified, and target reset."
+            result["summary"] = "Firmware flashed, verified, and target reset." if reset_after_flash else "Firmware flashed and verified. Target was not reset."
         return self._write_action_report(result)
 
     def reset_target(self, mode: str = "run") -> JsonObject:
         allowed_modes = ["run", "halt", "init"]
         if mode not in allowed_modes:
             return {"ok": False, "tool": "hardci_reset_target", "error_type": "invalid_argument", "summary": "Invalid reset mode.", "allowed_values": allowed_modes}
-        if not self.config.permissions.allow_reset:
-            return self._permission_denied("hardci_reset_target", "Reset is disabled by .hardci/config.yaml.")
         marker = OPENOCD_SUCCESS_MARKERS["hardci_reset_target"]
         result = self._run_openocd("hardci_reset_target", f'reset {mode}; echo "{marker}"; shutdown', marker)
         result["mode"] = mode

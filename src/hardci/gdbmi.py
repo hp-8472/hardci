@@ -122,6 +122,14 @@ class GdbMiClient:
             return GdbMiStopResult(line="", reason="timeout", timed_out=True)
         return result
 
+    def poll_stop(self) -> GdbMiStopResult | None:
+        with self.lock:
+            if self.pending_stop is not None or self.last_stop_line is None:
+                return None
+            line = self.last_stop_line
+            self.last_stop_line = None
+        return stop_result_from_line(line)
+
     def is_running(self) -> bool:
         return not self.exited.is_set() and self.child.poll() is None
 

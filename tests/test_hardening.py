@@ -258,10 +258,18 @@ def test_debug_set_breakpoint_requires_location(tmp_path: Path) -> None:
     assert result["error_type"] == "invalid_argument"
 
 
+def test_flash_rejects_non_boolean_reset_after_flash(tmp_path: Path) -> None:
+    service = HardCIToolService(load_test_config(tmp_path))
+
+    result = service.call("hardci_flash_firmware", {"image_path": "build/app.elf", "reset_after_flash": "false"})
+
+    assert result["ok"] is False
+    assert result["error_type"] == "invalid_argument"
+
+
 PERMISSION_GATE_CASES = [
     ("allow_probe", "hardci_probe_target", {}),
     ("allow_flash", "hardci_flash_firmware", {"image_path": "build/app.elf"}),
-    ("allow_reset", "hardci_reset_target", {}),
     ("allow_com_read", "hardci_com_session_start", {"port_id": "dut"}),
     ("allow_com_write", "hardci_com_write", {"port_id": "dut", "text": "hi"}),
     ("allow_can_read", "hardci_can_read", {"bus_id": "bench"}),

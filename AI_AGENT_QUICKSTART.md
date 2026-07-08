@@ -107,13 +107,13 @@ Use `tools/list` to discover available MCP tools, then follow this loop:
 1. Build firmware.
 2. Check debugger availability with `hardci_debugger_info` if setup is unclear.
 3. Probe with `hardci_probe_target`.
-4. Flash with `hardci_flash_firmware` using `image_path` (usually `build/firmware.elf`), or first call `hardci_artifact_upload` and flash the returned `artifact_id`.
+4. Flash with `hardci_flash_firmware` using `image_path` (usually `build/firmware.elf`), or first call `hardci_artifact_upload` and flash the returned `artifact_id`. Pass `reset_after_flash: true` only when a post-flash reset is explicitly needed.
 5. For serial feedback: `hardci_com_session_start`, stimulate with `hardci_com_write`, read with `hardci_com_read`, stop with `hardci_com_session_stop`.
 6. For CAN: `hardci_can_session_start`, `hardci_can_send`, `hardci_can_read`, `hardci_can_session_stop`.
 7. For simulated sensors, loads, and fault states: `hardci_adapter_session_start`, `hardci_adapter_set_value`, `hardci_adapter_inject_fault`, `hardci_adapter_measure`, `hardci_adapter_clear_fault`, `hardci_adapter_session_stop`.
 8. Read the tool result and `hardci_get_last_report`; diagnose failures with `hardci_classify_last_error`.
 
-Healthy probe and flash signals: `target_detected: true`, `success_confirmed: true`, `verify: true`, `reset_after_flash: true`, plus `report_path` and `log_path` for auditability.
+Healthy probe and flash signals: `target_detected: true`, `success_confirmed: true`, `verify: true`, an intentional `reset_after_flash` value, plus `report_path` and `log_path` for auditability.
 
 Do not use raw OpenOCD commands, arbitrary COM-port shell tools, direct CAN adapter tools, or direct test-adapter access when a HardCI MCP tool is available. Treat `permission_denied` as authoritative and stop.
 

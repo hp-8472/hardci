@@ -61,7 +61,6 @@ validation:
 permissions:
   allow_probe: true
   allow_flash: true
-  allow_reset: true
   allow_com_read: true
   allow_com_write: true
   allow_can_read: true

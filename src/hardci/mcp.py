@@ -60,7 +60,7 @@ MCP_TOOLS: list[JsonObject] = [
     {"name": "hardci_debugger_info", "description": "Check whether the configured debugger backend is available.", "inputSchema": EMPTY_OBJECT_SCHEMA},
     {"name": "hardci_probe_target", "description": "Probe the configured embedded target through the configured debugger.", "inputSchema": EMPTY_OBJECT_SCHEMA},
     {"name": "hardci_artifact_upload", "description": "Upload a local or base64-encoded firmware artifact into the configured HardCI artifact store.", "inputSchema": {"type": "object", "properties": {"image_path": {"type": "string"}, "filename": {"type": "string"}, "data_base64": {"type": "string"}}, "oneOf": [{"required": ["image_path"]}, {"required": ["filename", "data_base64"]}], "additionalProperties": False}},
-    {"name": "hardci_flash_firmware", "description": "Flash a validated firmware artifact. Provide exactly one of image_path or artifact_id.", "inputSchema": {"type": "object", "properties": {"image_path": {"type": "string"}, "artifact_id": {"type": "string"}}, "oneOf": [{"required": ["image_path"]}, {"required": ["artifact_id"]}], "additionalProperties": False}},
+    {"name": "hardci_flash_firmware", "description": "Flash a validated firmware artifact. Provide exactly one of image_path or artifact_id. The target is not reset unless reset_after_flash is true.", "inputSchema": {"type": "object", "properties": {"image_path": {"type": "string"}, "artifact_id": {"type": "string"}, "reset_after_flash": {"type": "boolean", "default": False}}, "oneOf": [{"required": ["image_path"]}, {"required": ["artifact_id"]}], "additionalProperties": False}},
     {"name": "hardci_reset_target", "description": "Reset the configured target through the configured debugger.", "inputSchema": {"type": "object", "properties": {"mode": {"type": "string", "enum": ["run", "halt", "init"], "default": "run"}}, "additionalProperties": False}},
     {"name": "hardci_debug_start_session", "description": "Start a typed debug session for a validated ELF artifact.", "inputSchema": {"type": "object", "properties": {"image_path": {"type": "string"}, "artifact_id": {"type": "string"}, "mode": {"type": "string", "enum": ["attach", "reset_halt", "load"], "default": "attach"}, "timeout_s": {"type": "number", "minimum": 0}}, "oneOf": [{"required": ["image_path"]}, {"required": ["artifact_id"]}], "additionalProperties": False}},
     {"name": "hardci_debug_stop_session", "description": "Stop the active typed debug session.", "inputSchema": {"type": "object", "properties": {"timeout_s": {"type": "number", "minimum": 0}}, "additionalProperties": False}},
@@ -100,7 +100,7 @@ Workflow:
 1. Build the firmware first.
 2. Check debugger availability with hardci_debugger_info if setup is unclear.
 3. Probe the target before flashing.
-4. Flash only validated artifacts from configured allowed roots.
+4. Flash only validated artifacts from configured allowed roots; flashing does not reset unless reset_after_flash is true.
 5. Read structured results after every hardware action.
 6. Use configured COM port ids, CAN bus ids, adapter ids, channel names, and fault names only.
 7. If ok is false, diagnose using error_type, backend_error_type, likely_causes, report_path, and log_path.

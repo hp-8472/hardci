@@ -6,6 +6,7 @@ import re
 import sys
 import threading
 import time
+from pathlib import Path
 
 COMMAND_PATTERN = re.compile(r"^(\d+)(.*)$")
 MEMORY_READ_PATTERN = re.compile(r"^-data-read-memory-bytes\s+(0x[0-9a-fA-F]+|\d+)\s+(\d+)$")
@@ -13,6 +14,10 @@ ASYNC_STOP_DELAY_S = 0.02
 
 CTC_ARRAY_ADDRESS = 0x200006F0
 CTC_ARRAY_SIZE = 408
+BEHAVIOR_FILE = "fake_gdb_behavior.txt"
+EXPECTED_BREAKPOINT_STOP = '*stopped,reason="breakpoint-hit",disp="keep",bkptno="1",frame={addr="0x08000200",func="test_done",args=[],file="tests.c",fullname="/work/tests.c",line="123"},thread-id="1",stopped-threads="all"'
+UNEXPECTED_BREAKPOINT_STOP = '*stopped,reason="breakpoint-hit",disp="keep",bkptno="99",frame={addr="0x08000300",func="assert_failed",args=[],file="assert.c",fullname="/work/assert.c",line="7"},thread-id="1",stopped-threads="all"'
+HARDFAULT_STOP = '*stopped,reason="signal-received",signal-name="SIGINT",signal-meaning="Interrupt",frame={addr="0x08000400",func="HardFault_Handler",args=[],file="startup.c",fullname="/work/startup.c",line="88"},thread-id="1",stopped-threads="all"'
 
 
 def emit(line: str) -> None:
@@ -20,9 +25,25 @@ def emit(line: str) -> None:
     sys.stdout.flush()
 
 
-def emit_delayed_breakpoint_stop() -> None:
+def behavior() -> str:
+    try:
+        return Path(BEHAVIOR_FILE).read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
+def emit_delayed_stop(stop_line: str) -> None:
     time.sleep(ASYNC_STOP_DELAY_S)
-    emit('*stopped,reason="breakpoint-hit",disp="keep",bkptno="1",frame={addr="0x08000200",func="test_done",args=[],file="tests.c",fullname="/work/tests.c",line="123"},thread-id="1",stopped-threads="all"')
+    emit(stop_line)
+
+
+def continue_stop_line() -> str:
+    current = behavior()
+    if current == "unexpected_breakpoint":
+        return UNEXPECTED_BREAKPOINT_STOP
+    if current == "hardfault":
+        return HARDFAULT_STOP
+    return EXPECTED_BREAKPOINT_STOP
 
 
 def evaluate_expression(token: str, expression: str) -> None:
@@ -55,7 +76,11 @@ def main() -> int:
         if command == "-gdb-exit":
             emit(f"{token}^exit")
             return 0
-        if command.startswith(("-gdb-set", "-file-exec-and-symbols", "-target-select", "-interpreter-exec", "-target-download", "-break-delete")):
+        if command.startswith("-target-select"):
+            emit(f"{token}^done")
+            if behavior() == "stopped_on_attach_hardfault":
+                emit(HARDFAULT_STOP)
+        elif command.startswith(("-gdb-set", "-file-exec-and-symbols", "-interpreter-exec", "-target-download", "-break-delete")):
             emit(f"{token}^done")
         elif command.startswith("-break-insert"):
             emit(f'{token}^done,bkpt={{number="{next_breakpoint}",type="breakpoint",disp="keep",enabled="y",addr="0x08000200",func="test_done",file="tests.c",line="123"}}')
@@ -63,7 +88,7 @@ def main() -> int:
         elif command.startswith("-exec-continue"):
             emit(f"{token}^running")
             emit("*running,thread-id=\"all\"")
-            threading.Thread(target=emit_delayed_breakpoint_stop, daemon=True).start()
+            threading.Thread(target=emit_delayed_stop, args=(continue_stop_line(),), daemon=True).start()
         elif command.startswith("-exec-interrupt"):
             emit(f"{token}^done")
             emit('*stopped,reason="signal-received",signal-name="SIGINT",frame={addr="0x08000100",func="main",file="main.c",line="42"}')

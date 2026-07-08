@@ -119,14 +119,14 @@ Export the full JSON schema with `hardci schema --output hardci-config.schema.js
 | Group | Tools | Notes |
 |-------|-------|-------|
 | Debugger | `hardci_debugger_info`, `hardci_probe_target`, `hardci_reset_target` | OpenOCD, pyOCD, or STM32CubeProgrammer CLI |
-| Firmware | `hardci_flash_firmware`, `hardci_artifact_upload` | artifacts are validated (path, extension, format, SHA-256) before flashing |
+| Firmware | `hardci_flash_firmware`, `hardci_artifact_upload` | artifacts are validated (path, extension, format, SHA-256) before flashing; post-flash reset requires `reset_after_flash: true` |
 | Serial | `hardci_com_ports_list`, `hardci_com_session_start`, `hardci_com_session_stop`, `hardci_com_write`, `hardci_com_read` | named ports only, buffered background reader |
 | CAN | `hardci_can_buses_list`, `hardci_can_session_start`, `hardci_can_session_stop`, `hardci_can_send`, `hardci_can_read` | PEAK, SocketCAN, or a process bridge |
 | Test adapters | `hardci_adapters_list`, `hardci_adapter_session_start`, `hardci_adapter_session_stop`, `hardci_adapter_set_value`, `hardci_adapter_inject_fault`, `hardci_adapter_clear_fault`, `hardci_adapter_measure` | sensor/actuator/fault simulation via the [adapter bridge protocol](examples/adapters/README.md) |
 | Diagnostics | `hardci_get_last_report`, `hardci_classify_last_error` | structured error classification with likely causes |
-| Debug sessions | `hardci_debug_*` (start/stop/status, breakpoints, continue/halt, symbol info, memory dump) | typed GDB/MI sessions via the OpenOCD backend's gdbserver; symbol allowlist and dump-size limits from the `debug:` policy section |
+| Debug sessions | `hardci_debug_*` (start/stop/status, breakpoints, continue/halt, symbol info, memory dump) | typed GDB/MI sessions via the OpenOCD backend's gdbserver; unexpected breakpoints and target exceptions are returned as structured stop reasons; symbol allowlist and dump-size limits come from the `debug:` policy section |
 
-A typical loop: build firmware → `hardci_flash_firmware` → `hardci_com_session_start` → stimulate via `hardci_com_write`/`hardci_can_send`/`hardci_adapter_set_value` → assert on `hardci_com_read`/`hardci_can_read`/`hardci_adapter_measure` → on failure, `hardci_classify_last_error`.
+A typical loop: build firmware → `hardci_flash_firmware` with `reset_after_flash: true` when a fresh boot is required → `hardci_com_session_start` → stimulate via `hardci_com_write`/`hardci_can_send`/`hardci_adapter_set_value` → assert on `hardci_com_read`/`hardci_can_read`/`hardci_adapter_measure` → on failure, `hardci_classify_last_error`.
 
 ## Test Adapters
 
@@ -138,7 +138,7 @@ Example diagnosis loop with the bundled NTC simulator (`examples/adapters/sim_nt
 
 - The agent never gets a shell, a raw debugger, or a device path — only the named, configured resources.
 - Firmware artifacts must live under `artifacts.allowed_roots`, match an allowed extension, pass format plausibility checks, and are hashed before flashing. Path traversal is rejected.
-- Every action class has its own permission switch; `permission_denied` results are authoritative and agents are instructed to stop (see [AGENTS.md](AGENTS.md)).
+- Permission switches gate high-risk action classes; `permission_denied` results are authoritative and agents are instructed to stop (see [AGENTS.md](AGENTS.md)).
 - Deliberate interlock: flashing is refused while `allow_raw_debugger_commands` or `allow_mass_erase` is enabled — validated flashing and unrestricted debugger access are mutually exclusive policies.
 - Serial/CAN writes are size-capped (`max_write_bytes`, `max_frame_data_bytes`); reads are buffer-capped. Debugger calls run with timeouts and TCP servers disabled (OpenOCD `gdb_port`/`tcl_port`/`telnet_port disabled`); only a typed debug session opens a `gdb_port`, bound to `localhost` on an ephemeral port for exactly that session, and it is torn down with the session.
 - Test adapter channels and fault names are explicit allowlists — HardCI rejects anything not named in the config before it reaches the adapter bridge.

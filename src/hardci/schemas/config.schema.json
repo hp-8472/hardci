@@ -137,7 +137,6 @@
       "properties": {
         "allow_probe": { "type": "boolean", "default": true },
         "allow_flash": { "type": "boolean", "default": true },
-        "allow_reset": { "type": "boolean", "default": true },
         "allow_com_read": { "type": "boolean", "default": true },
         "allow_com_write": { "type": "boolean", "default": true },
         "allow_can_read": { "type": "boolean", "default": true },

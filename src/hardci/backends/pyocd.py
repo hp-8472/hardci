@@ -68,7 +68,7 @@ class PyOCDBackend:
             result["summary"] = "Target detected through pyOCD."
         return self._write_action_report(result)
 
-    def flash_firmware(self, artifact: JsonObject) -> JsonObject:
+    def flash_firmware(self, artifact: JsonObject, reset_after_flash: bool = False) -> JsonObject:
         if not self.config.permissions.allow_flash:
             return self._permission_denied("hardci_flash_firmware", "Flashing is disabled by .hardci/config.yaml.")
         if self.config.permissions.allow_raw_debugger_commands:
@@ -89,6 +89,10 @@ class PyOCDBackend:
         if not result.get("ok"):
             result["reset_after_flash"] = False
             return self._write_action_report(result)
+        if not reset_after_flash:
+            result["reset_after_flash"] = False
+            result["summary"] = "Firmware flashed and verified. Target was not reset."
+            return self._write_action_report(result)
 
         reset = self._run_pyocd("hardci_flash_firmware", ["commander", "--command", "reset", *self._connection_args()])
         if not reset.get("ok"):
@@ -98,7 +102,7 @@ class PyOCDBackend:
             reset["error_type"] = "reset_failed"
             reset["summary"] = "Firmware flashed, but the post-flash reset failed."
             return self._write_action_report(reset)
-        result["reset_after_flash"] = True
+        result["reset_after_flash"] = reset_after_flash
         result["summary"] = "Firmware flashed, verified, and target reset."
         return self._write_action_report(result)
 
@@ -106,8 +110,6 @@ class PyOCDBackend:
         allowed_modes = ["run", "halt", "init"]
         if mode not in allowed_modes:
             return {"ok": False, "tool": "hardci_reset_target", "error_type": "invalid_argument", "summary": "Invalid reset mode.", "allowed_values": allowed_modes}
-        if not self.config.permissions.allow_reset:
-            return self._permission_denied("hardci_reset_target", "Reset is disabled by .hardci/config.yaml.")
         commander_command = "reset" if mode == "run" else "reset halt"
         result = self._run_pyocd("hardci_reset_target", ["commander", "--command", commander_command, *self._connection_args()])
         result["mode"] = mode

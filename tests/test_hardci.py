@@ -107,6 +107,28 @@ def test_openocd_passes_configured_probe_id(tmp_path: Path) -> None:
     assert "adapter serial STLINK123" in log_text
 
 
+def test_openocd_flash_defaults_to_no_reset_and_can_reset_explicitly(tmp_path: Path) -> None:
+    firmware = tmp_path / "build" / "firmware.elf"
+    firmware.parent.mkdir(parents=True)
+    firmware.write_bytes(b"\x7fELFfake")
+    config = load_config(str(write_config(tmp_path)), str(tmp_path))
+    service = HardCIToolService(config)
+    try:
+        no_reset = mcp_tool_call(service, "hardci_flash_firmware", {"image_path": "build/firmware.elf"})
+        with_reset = mcp_tool_call(service, "hardci_flash_firmware", {"image_path": "build/firmware.elf", "reset_after_flash": True})
+    finally:
+        service.close()
+    assert no_reset["ok"] is True
+    assert no_reset["reset_after_flash"] is False
+    no_reset_log = (tmp_path / no_reset["log_path"]).read_text(encoding="utf-8")
+    assert "program" in no_reset_log
+    assert "verify reset" not in no_reset_log
+    assert with_reset["ok"] is True
+    assert with_reset["reset_after_flash"] is True
+    reset_log = (tmp_path / with_reset["log_path"]).read_text(encoding="utf-8")
+    assert "verify reset" in reset_log
+
+
 def test_stlink_backend_probes_and_flashes_with_probe_id(tmp_path: Path) -> None:
     firmware = tmp_path / "build" / "firmware.elf"
     firmware.parent.mkdir(parents=True)
@@ -123,12 +145,13 @@ def test_stlink_backend_probes_and_flashes_with_probe_id(tmp_path: Path) -> None
     assert probe["ok"] is True
     assert flash["ok"] is True
     assert flash["operation_result"]["confirmed"] is True
+    assert flash["reset_after_flash"] is False
     log_text = (tmp_path / flash["log_path"]).read_text(encoding="utf-8")
     assert "port=SWD" in log_text
     assert "sn=STLINK123" in log_text
     assert "-w" in log_text
     assert "-v" in log_text
-    assert "-rst" in log_text
+    assert "-rst" not in log_text
 
 
 def test_pyocd_backend_probes_flashes_and_resets_with_probe_and_target(tmp_path: Path) -> None:
@@ -143,7 +166,7 @@ def test_pyocd_backend_probes_flashes_and_resets_with_probe_and_target(tmp_path:
     try:
         info = mcp_tool_call(service, "hardci_debugger_info")
         probe = mcp_tool_call(service, "hardci_probe_target")
-        flash = mcp_tool_call(service, "hardci_flash_firmware", {"image_path": "build/firmware.elf"})
+        flash = mcp_tool_call(service, "hardci_flash_firmware", {"image_path": "build/firmware.elf", "reset_after_flash": True})
         reset = mcp_tool_call(service, "hardci_reset_target", {"mode": "halt"})
     finally:
         service.close()

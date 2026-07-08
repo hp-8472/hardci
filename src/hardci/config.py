@@ -305,7 +305,6 @@ def permissions_config(raw: JsonObject) -> PermissionsConfig:
     return PermissionsConfig(
         allow_probe=bool(raw.get("allow_probe", True)),
         allow_flash=bool(raw.get("allow_flash", True)),
-        allow_reset=bool(raw.get("allow_reset", True)),
         allow_com_read=bool(raw.get("allow_com_read", True)),
         allow_com_write=bool(raw.get("allow_com_write", True)),
         allow_can_read=bool(raw.get("allow_can_read", True)),

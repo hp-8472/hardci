@@ -26,7 +26,16 @@ GDB_AUTODETECT_CANDIDATES = ["arm-none-eabi-gdb", "gdb-multiarch", "gdb"]
 DEBUG_SYMBOL_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*$")
 BREAKPOINT_FILE_PATTERN = re.compile(r"^[A-Za-z0-9_./\\:-]+$")
 MEMORY_CONTENTS_PATTERN = re.compile(r"^(?:[0-9a-fA-F]{2})*$")
-FAULT_MARKERS = ["hardfault", "memmanage", "busfault", "usagefault"]
+TARGET_EXCEPTION_MARKERS = [
+    ("hardfault", "hardfault"),
+    ("hard_fault", "hardfault"),
+    ("memmanage", "memmanage"),
+    ("busfault", "busfault"),
+    ("usagefault", "usagefault"),
+    ("default_handler", "default_handler"),
+]
+SIGNAL_EXCEPTION_NAMES = {"SIGABRT", "SIGBUS", "SIGFPE", "SIGILL", "SIGSEGV"}
+ABNORMAL_STOP_REASONS = {"debugger_error", "exception", "fault", "unexpected_breakpoint"}
 TCP_POLL_INTERVAL_S = 0.05
 TCP_CONNECT_TIMEOUT_S = 0.2
 MEMORY_READ_CHUNK_BYTES = 1024
@@ -34,6 +43,7 @@ GDB_COMMAND_TIMEOUT_CAP_S = 10.0
 CONTINUE_COMMAND_TIMEOUT_CAP_S = 5.0
 STOP_SESSION_TIMEOUT_CAP_S = 5.0
 CLOSE_SESSION_TIMEOUT_S = 1.0
+INITIAL_STOP_POLL_TIMEOUT_S = 0.05
 OUTPUT_TAIL_CHARS = 65536
 
 
@@ -119,8 +129,9 @@ class GdbDebugSessions:
             return self._report({"tool": tool, "backend": self.backend_name, "started_at": started_at, **initialized, "log_path": display_path(self.config, log_path)})
 
         session.status = "halted"
+        self._refresh_session_stop(session, INITIAL_STOP_POLL_TIMEOUT_S)
         self._write_session_log(session)
-        return self._report({
+        result: JsonObject = {
             "ok": True,
             "tool": tool,
             "backend": self.backend_name,
@@ -133,7 +144,9 @@ class GdbDebugSessions:
             "gdb_port": gdb_port,
             "log_path": display_path(self.config, log_path),
             "summary": "Debug session started and target is halted.",
-        })
+        }
+        result.update(target_stop_fields(session.stop_reason))
+        return self._report(result)
 
     def stop_session(self, timeout_s: float | None = None) -> JsonObject:
         tool = "hardci_debug_stop_session"
@@ -148,8 +161,12 @@ class GdbDebugSessions:
 
     def get_session_status(self) -> JsonObject:
         session = self.session
+        if session is not None and session.status not in {"stopped", "error"} and session.gdb is not None:
+            self._refresh_session_stop(session)
         active = session is not None and session.status not in {"stopped", "error"}
-        return {"ok": True, "tool": "hardci_debug_get_session_status", "backend": self.backend_name, "active": active, "status": session.status if session else "stopped", "session": self._session_status(session) if session else None}
+        result: JsonObject = {"ok": True, "tool": "hardci_debug_get_session_status", "backend": self.backend_name, "active": active, "status": session.status if session else "stopped", "session": self._session_status(session) if session else None}
+        result.update(target_stop_fields(session.stop_reason if session else None))
+        return result
 
     def set_breakpoint(self, location: JsonObject | str) -> JsonObject:
         tool = "hardci_debug_set_breakpoint"
@@ -196,6 +213,9 @@ class GdbDebugSessions:
         if not session_result["ok"]:
             return self._report(session_result)
         session = session_result["session"]
+        self._refresh_session_stop(session)
+        if session.stop_reason is not None and str(session.stop_reason.get("stop_reason")) in {"debugger_error", "exception", "fault"}:
+            return self._report(self._stopped_result(tool, session, "Target is already stopped"))
         timeout = self.config.debugger.timeout_s if timeout_s is None else max(0.1, timeout_s)
         session.status = "running"
         session.stop_reason = None
@@ -215,10 +235,7 @@ class GdbDebugSessions:
         session.stop_reason = self._stop_reason_from_gdb(session, stop)
         stop_reason = str(session.stop_reason.get("stop_reason"))
         session.status = "error" if stop_reason == "debugger_error" else "halted"
-        ok = stop_reason not in {"fault", "debugger_error"}
-        result: JsonObject = {"ok": ok, "tool": tool, "backend": self.backend_name, "stop_reason": stop_reason, "stop": session.stop_reason, "session": self._session_status(session), "log_path": display_path(self.config, session.log_path), "summary": f"Target stopped: {stop_reason}."}
-        if not ok:
-            result["error_type"] = "target_fault" if stop_reason == "fault" else "debugger_error"
+        result = self._stopped_result(tool, session, "Target stopped")
         self._write_session_log(session)
         return self._report(result)
 
@@ -228,6 +245,8 @@ class GdbDebugSessions:
         if not session_result["ok"]:
             return self._report(session_result)
         session = session_result["session"]
+        if self._refresh_session_stop(session) is not None:
+            return self._report(self._stopped_result(tool, session, "Target was already stopped"))
         timeout = min(self.config.debugger.timeout_s, GDB_COMMAND_TIMEOUT_CAP_S) if timeout_s is None else max(0.1, timeout_s)
         response = self._gdb_command(session, "-exec-interrupt --all", timeout)
         if not response.ok:
@@ -237,7 +256,7 @@ class GdbDebugSessions:
         session.status = "halted"
         session.stop_reason = self._stop_reason_from_gdb(session, stop)
         self._write_session_log(session)
-        return self._report({"ok": True, "tool": tool, "backend": self.backend_name, "stop": session.stop_reason, "session": self._session_status(session), "log_path": display_path(self.config, session.log_path), "summary": "Target halted."})
+        return self._report(self._stopped_result(tool, session, "Target halted"))
 
     def get_stop_reason(self) -> JsonObject:
         tool = "hardci_debug_get_stop_reason"
@@ -245,9 +264,12 @@ class GdbDebugSessions:
         if not session_result["ok"]:
             return self._report(session_result)
         session = session_result["session"]
+        self._refresh_session_stop(session)
         if session.stop_reason is None:
             return {"ok": False, "tool": tool, "backend": self.backend_name, "error_type": "stop_reason_not_available", "summary": "No stop reason has been recorded yet. Run hardci_debug_continue or hardci_debug_halt first."}
-        return {"ok": True, "tool": tool, "backend": self.backend_name, "stop_reason": session.stop_reason.get("stop_reason"), "stop": session.stop_reason, "session": self._session_status(session)}
+        result = {"ok": True, "tool": tool, "backend": self.backend_name, "stop_reason": session.stop_reason.get("stop_reason"), "stop": session.stop_reason, "session": self._session_status(session)}
+        result.update(target_stop_fields(session.stop_reason))
+        return result
 
     def symbol_info(self, symbol: str) -> JsonObject:
         tool = "hardci_debug_symbol_info"
@@ -295,8 +317,6 @@ class GdbDebugSessions:
             return self._permission_denied(tool, "Debug sessions require allow_probe in .hardci/config.yaml.")
         if permissions.allow_raw_debugger_commands:
             return self._permission_denied(tool, "Debug sessions are disabled while raw debugger commands are allowed.")
-        if mode != "attach" and not permissions.allow_reset:
-            return self._permission_denied(tool, f"Debug session mode '{mode}' requires allow_reset in .hardci/config.yaml.")
         if mode == "load":
             if not permissions.allow_flash:
                 return self._permission_denied(tool, "Debug session mode 'load' requires allow_flash in .hardci/config.yaml.")
@@ -368,32 +388,84 @@ class GdbDebugSessions:
         backend_error_type = "gdb_timeout" if timed_out else "gdb_error"
         return {"ok": False, "tool": tool, "backend": self.backend_name, "error_type": error_type, "backend_error_type": backend_error_type, "summary": message or "GDB/MI command failed.", "session": self._session_status(session), "log_path": display_path(self.config, session.log_path)}
 
+    def _refresh_session_stop(self, session: GdbDebugSession, wait_timeout_s: float = 0.0) -> JsonObject | None:
+        assert session.gdb is not None
+        stop = session.gdb.poll_stop()
+        if stop is None and wait_timeout_s > 0:
+            candidate = session.gdb.wait_for_stop(wait_timeout_s)
+            stop = None if candidate.timed_out else candidate
+        if stop is None:
+            return None
+        session.stop_reason = self._stop_reason_from_gdb(session, stop)
+        stop_reason = str(session.stop_reason.get("stop_reason"))
+        session.status = "error" if stop_reason == "debugger_error" else "halted"
+        self._write_session_log(session)
+        return session.stop_reason
+
+    def _stopped_result(self, tool: str, session: GdbDebugSession, summary_prefix: str) -> JsonObject:
+        stop = session.stop_reason or {"stop_reason": "unknown", "backend_stop_reason": "unknown"}
+        stop_reason = str(stop.get("stop_reason"))
+        ok = stop_reason not in ABNORMAL_STOP_REASONS
+        result: JsonObject = {"ok": ok, "tool": tool, "backend": self.backend_name, "stop_reason": stop_reason, "stop": stop, "session": self._session_status(session), "log_path": display_path(self.config, session.log_path), "summary": f"{summary_prefix}: {stop_reason}."}
+        if not ok:
+            result["error_type"] = stop_error_type(stop_reason)
+            result["suggested_actions"] = suggested_actions_for_stop(stop_reason)
+        return result
+
     def _stop_reason_from_gdb(self, session: GdbDebugSession, stop: GdbMiStopResult) -> JsonObject:
         if stop.timed_out:
             return {"stop_reason": "timeout", "backend_stop_reason": "timeout"}
         if stop.error_message:
             return {"stop_reason": "debugger_error", "backend_stop_reason": stop.reason, "backend_error": stop.error_message}
         lower = stop.line.lower()
+        backend_breakpoint_id = mi_field(stop.line, "bkptno")
+        matching = next((item for item in session.breakpoints if item.get("backend_id") == backend_breakpoint_id), None) if backend_breakpoint_id is not None else None
+        exception_type = exception_type_from_stop_line(lower)
+        signal_name = mi_field(stop.line, "signal-name")
+        signal_meaning = mi_field(stop.line, "signal-meaning")
         if stop.reason == "breakpoint-hit":
-            stop_reason = "breakpoint_hit"
+            stop_reason = "breakpoint_hit" if matching is not None else "unexpected_breakpoint"
         elif stop.reason in {"exited-normally", "exited"}:
             stop_reason = "target_exit"
-        elif stop.reason == "signal-received" or any(marker in lower for marker in FAULT_MARKERS):
-            stop_reason = "fault"
+        elif exception_type is not None:
+            stop_reason = "exception"
         elif "reset_handler" in lower or "reset" in lower:
             stop_reason = "reset"
+        elif stop.reason == "signal-received":
+            if signal_name == "SIGTRAP":
+                stop_reason = "unexpected_breakpoint"
+            elif signal_name in SIGNAL_EXCEPTION_NAMES:
+                stop_reason = "exception"
+                exception_type = exception_type or signal_name.lower()
+            elif signal_name == "SIGINT":
+                stop_reason = "halted"
+            else:
+                stop_reason = "signal"
         elif stop.reason == "debugger-error":
             stop_reason = "debugger_error"
         else:
             stop_reason = "unknown"
         result: JsonObject = {"stop_reason": stop_reason, "backend_stop_reason": stop.reason}
-        backend_breakpoint_id = mi_field(stop.line, "bkptno")
+        if exception_type is not None:
+            result["exception_type"] = exception_type
+            result["fault_type"] = exception_type
+        if signal_name is not None or signal_meaning is not None:
+            signal: JsonObject = {}
+            if signal_name is not None:
+                signal["name"] = signal_name
+            if signal_meaning is not None:
+                signal["meaning"] = signal_meaning
+            result["signal"] = signal
         if backend_breakpoint_id is not None:
             result["backend_breakpoint_id"] = backend_breakpoint_id
-            matching = next((item for item in session.breakpoints if item.get("backend_id") == backend_breakpoint_id), None)
             if matching is not None:
+                result["breakpoint_expected"] = True
                 result["breakpoint_id"] = matching["id"]
                 result["breakpoint"] = matching
+            else:
+                result["breakpoint_expected"] = False
+        elif stop_reason == "unexpected_breakpoint":
+            result["breakpoint_expected"] = False
         frame: JsonObject = {}
         for source_field, target_field in [("func", "function"), ("addr", "address"), ("file", "file")]:
             value = mi_field(stop.line, source_field)
@@ -514,6 +586,7 @@ class GdbDebugSessions:
             "session_id": session.session_id,
             "mode": session.mode,
             "status": session.status,
+            "stop_reason": session.stop_reason,
             "server_command": session.server_args,
             "server_stdout_tail": session.server_stdout,
             "server_stderr_tail": session.server_stderr,
@@ -528,6 +601,50 @@ class GdbDebugSessions:
 
 def public_artifact(artifact: JsonObject) -> JsonObject:
     return {"source": artifact.get("source"), "path": artifact.get("path"), "sha256": artifact.get("sha256")}
+
+
+def exception_type_from_stop_line(lower_line: str) -> str | None:
+    for marker, exception_type in TARGET_EXCEPTION_MARKERS:
+        if marker in lower_line:
+            return exception_type
+    return None
+
+
+def stop_error_type(stop_reason: str) -> str:
+    if stop_reason in {"exception", "fault"}:
+        return "target_exception"
+    return stop_reason
+
+
+def suggested_actions_for_stop(stop_reason: str) -> list[str]:
+    if stop_reason == "unexpected_breakpoint":
+        return [
+            "Target is halted; do not continue blindly.",
+            "Inspect the returned frame and stop reason first.",
+            "If this was a stale breakpoint, run hardci_debug_clear_breakpoints and set only the expected breakpoints again.",
+            "If this was a firmware BKPT/assert, collect logs or memory evidence, then reset or restart the debug session.",
+        ]
+    if stop_reason in {"exception", "fault"}:
+        return [
+            "Target is halted in an exception/fault context; do not continue blindly.",
+            "Inspect the returned frame, exception_type, signal, and available firmware logs.",
+            "Collect required memory or symbol evidence before resetting the target.",
+            "After diagnosis, reset or restart the debug session before rerunning the test.",
+        ]
+    if stop_reason == "debugger_error":
+        return ["Check log_path and hardci_classify_last_error before retrying the debug action."]
+    return []
+
+
+def target_stop_fields(stop: JsonObject | None) -> JsonObject:
+    if stop is None:
+        return {}
+    stop_reason = str(stop.get("stop_reason"))
+    fields: JsonObject = {"target_ok": stop_reason not in ABNORMAL_STOP_REASONS, "target_stop_reason": stop_reason, "stop": stop}
+    if stop_reason in ABNORMAL_STOP_REASONS:
+        fields["target_error_type"] = stop_error_type(stop_reason)
+        fields["suggested_actions"] = suggested_actions_for_stop(stop_reason)
+    return fields
 
 
 def normalize_breakpoint_location(tool: str, location: JsonObject | str) -> JsonObject:

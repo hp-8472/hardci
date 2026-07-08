@@ -73,7 +73,7 @@ class STLinkBackend:
             result["summary"] = "Target detected through ST-Link."
         return self._write_action_report(result)
 
-    def flash_firmware(self, artifact: JsonObject) -> JsonObject:
+    def flash_firmware(self, artifact: JsonObject, reset_after_flash: bool = False) -> JsonObject:
         if not self.config.permissions.allow_flash:
             return self._permission_denied("hardci_flash_firmware", "Flashing is disabled by .hardci/config.yaml.")
         if self.config.permissions.allow_raw_debugger_commands:
@@ -87,20 +87,19 @@ class STLinkBackend:
             if self.config.debugger.flash_address is None:
                 return {"ok": False, "tool": "hardci_flash_firmware", "backend": self.backend_name, "error_type": "invalid_argument", "summary": "Flashing .bin artifacts with ST-Link requires debugger.flash_address.", "artifact": {"source": artifact.get("source", "path"), "path": artifact.get("path"), "sha256": artifact.get("sha256")}}
             write_args.append(self.config.debugger.flash_address)
-        result = self._run_stlink("hardci_flash_firmware", [*self._connection_args(), *write_args, "-v", "-rst"])
+        reset_args = ["-rst"] if reset_after_flash else []
+        result = self._run_stlink("hardci_flash_firmware", [*self._connection_args(), *write_args, "-v", *reset_args])
         result["artifact"] = {"source": artifact.get("source", "path"), "path": artifact.get("path"), "sha256": artifact.get("sha256")}
         result["verify"] = True
-        result["reset_after_flash"] = True
+        result["reset_after_flash"] = reset_after_flash
         if result.get("ok"):
-            result["summary"] = "Firmware flashed, verified, and target reset."
+            result["summary"] = "Firmware flashed, verified, and target reset." if reset_after_flash else "Firmware flashed and verified. Target was not reset."
         return self._write_action_report(result)
 
     def reset_target(self, mode: str = "run") -> JsonObject:
         allowed_modes = ["run", "halt", "init"]
         if mode not in allowed_modes:
             return {"ok": False, "tool": "hardci_reset_target", "error_type": "invalid_argument", "summary": "Invalid reset mode.", "allowed_values": allowed_modes}
-        if not self.config.permissions.allow_reset:
-            return self._permission_denied("hardci_reset_target", "Reset is disabled by .hardci/config.yaml.")
         mode_args = {"run": ["-rst"], "halt": ["-halt"], "init": ["-halt"]}
         result = self._run_stlink("hardci_reset_target", [*self._connection_args(), *mode_args[mode]])
         result["mode"] = mode
